@@ -19,15 +19,20 @@ current?: string;
 
 return (
 
-<header className="
+<header
+className="
 w-full
-px-6
-py-5
+px-3
+md:px-6
+py-4
+md:py-5
 flex
 items-center
 justify-between
-gap-6
-">
+gap-3
+overflow-x-hidden
+"
+>
 
 
 <Link
@@ -82,7 +87,8 @@ alt="EcoVlog"
 
 className="
 relative
-h-16
+h-12
+md:h-16
 w-auto
 object-contain
 "
@@ -99,31 +105,35 @@ object-contain
 
 
 
-<div className="
+<div
+className="
 flex
 flex-col
 items-end
 gap-3
 ml-auto
-">
+min-w-0
+w-full
+md:w-auto
+"
+>
 
 
 
 
 
-<div className="
+<div
+className="
 flex
 items-center
-gap-6
-">
+justify-end
+gap-2
+w-full
+"
+>
 
 
 
-
-
-<div className="
-relative
-">
 
 
 <form
@@ -132,6 +142,8 @@ action={searchAction}
 
 className="
 relative
+w-full
+md:w-auto
 "
 
 >
@@ -144,16 +156,17 @@ name="search"
 placeholder={searchPlaceholder}
 
 className="
-w-[180px]
+w-full
 md:w-[240px]
 rounded-full
 bg-white/10
 border
 border-white/20
 backdrop-blur-xl
-px-5
-py-2.5
-text-sm
+px-4
+py-2
+text-xs
+md:text-sm
 text-white
 placeholder:text-white/50
 outline-none
@@ -167,24 +180,22 @@ transition
 </form>
 
 
-</div>
 
 
 
 
+<nav
 
-
-<nav className="
+className="
 hidden
 md:flex
 items-center
 gap-5
 text-white/80
 text-sm
-">
+"
 
-
-
+>
 
 
 <Link
@@ -197,14 +208,8 @@ transition
 "
 
 >
-
 Видео
-
 </Link>
-
-
-
-
 
 
 <Link
@@ -217,14 +222,8 @@ transition
 "
 
 >
-
 Статьи
-
 </Link>
-
-
-
-
 
 
 <Link
@@ -237,14 +236,8 @@ transition
 "
 
 >
-
 Публикации
-
 </Link>
-
-
-
-
 
 
 <Link
@@ -257,13 +250,8 @@ transition
 "
 
 >
-
 Экокарта
-
 </Link>
-
-
-
 
 
 
@@ -293,16 +281,14 @@ duration-300
 
 >
 
-
-<span className="
+<span
+className="
 relative
 z-10
-">
-
+"
+>
 Контакты
-
 </span>
-
 
 
 <div
@@ -318,15 +304,11 @@ pointer-events-none
 />
 
 
-
 </Link>
 
 
-
-
-
-
 </nav>
+
 
 
 </div>
@@ -344,7 +326,9 @@ current={current}
 
 
 
+
 </div>
+
 
 
 

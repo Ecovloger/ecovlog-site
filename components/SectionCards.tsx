@@ -55,10 +55,7 @@ md:py-16
 
 
 
-
-
 {/* ДЕСКТОП */}
-
 
 
 <div className="
@@ -70,9 +67,7 @@ h-[520px]
 ">
 
 
-{
-
-sections.map((item,index)=>(
+{sections.map((item,index)=>(
 
 
 <Link
@@ -119,9 +114,7 @@ shadow-2xl
 ">
 
 
-
 <Image
-
 
 src={item.image}
 
@@ -129,12 +122,9 @@ alt={item.title}
 
 fill
 
-priority={index === 0}
+priority
 
-sizes="
-(max-width:1200px) 25vw,
-400px
-"
+sizes="(min-width: 768px) 25vw, 50vw"
 
 className={`
 
@@ -142,7 +132,6 @@ object-cover
 
 transition-transform
 duration-700
-
 
 ${
 active === index
@@ -158,7 +147,6 @@ active === index
 
 
 
-
 <div className="
 absolute
 inset-0
@@ -169,15 +157,12 @@ to-black/70
 
 
 
-
-
 <div className="
 absolute
 bottom-8
 left-1/2
 -translate-x-1/2
 ">
-
 
 
 <div className="
@@ -207,28 +192,20 @@ font-bold
 </div>
 
 
-
 </div>
 
 
 
 </div>
-
 
 
 </Link>
 
 
-))
-
-
-}
-
+))}
 
 
 </div>
-
-
 
 
 
@@ -238,20 +215,20 @@ font-bold
 
 
 
-
-
 <div className="
+
 md:hidden
+
 grid
+
 grid-cols-2
+
 gap-3
+
 ">
 
 
-{
-
-
-sections.map((item,index)=>(
+{sections.map((item)=>(
 
 
 <Link
@@ -263,11 +240,17 @@ href={item.link}
 className="
 
 relative
+
 h-[220px]
+
 rounded-[1.5rem]
+
 overflow-hidden
+
 border
+
 border-white/20
+
 shadow-xl
 
 "
@@ -276,9 +259,7 @@ shadow-xl
 
 
 
-
 <Image
-
 
 src={item.image}
 
@@ -286,14 +267,14 @@ alt={item.title}
 
 fill
 
-priority={index < 2}
+priority
 
-sizes="
-50vw
-"
+sizes="50vw"
 
 className="
+
 object-cover
+
 "
 
 />
@@ -303,9 +284,13 @@ object-cover
 
 
 <div className="
+
 absolute
+
 inset-0
+
 bg-black/40
+
 "/>
 
 
@@ -313,26 +298,35 @@ bg-black/40
 
 
 <div className="
+
 absolute
+
 inset-0
+
 flex
+
 items-center
+
 justify-center
+
 ">
-
-
 
 
 
 <div className="
 
 backdrop-blur-2xl
+
 bg-white/15
+
 border
+
 border-white/25
+
 rounded-2xl
 
 px-4
+
 py-3
 
 shadow-[0_8px_32px_rgba(0,0,0,0.35)]
@@ -340,13 +334,16 @@ shadow-[0_8px_32px_rgba(0,0,0,0.35)]
 ">
 
 
-
 <h2 className="
 
 text-base
+
 font-bold
+
 text-white
+
 leading-[1.05]
+
 text-center
 
 ">
@@ -358,26 +355,18 @@ text-center
 </h2>
 
 
-
 </div>
 
 
 
-
-
 </div>
-
-
 
 
 
 </Link>
 
 
-))
-
-
-}
+))}
 
 
 
@@ -385,10 +374,8 @@ text-center
 
 
 
-
-
-
 </section>
+
 
 )
 

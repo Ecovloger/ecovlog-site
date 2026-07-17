@@ -1,13 +1,13 @@
 import "./globals.css";
 
-import { Passion_One } from "next/font/google";
+import { Oswald } from "next/font/google";
 import PageBackground from "@/components/PageBackground";
 
 
-const passionOne = Passion_One({
+const oswald = Oswald({
   subsets: ["cyrillic", "latin"],
-  weight: ["700", "900"],
-  variable: "--font-passion",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-oswald",
 });
 
 
@@ -102,7 +102,7 @@ return (
 
 <html lang="ru">
 
-<body className={passionOne.variable}>
+<body className={oswald.variable}>
 
 <PageBackground>
 

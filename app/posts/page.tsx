@@ -3,9 +3,11 @@ import {urlFor} from "@/sanity/lib/image";
 import SectionHeader from "@/components/SectionHeader";
 import Footer from "@/components/Footer";
 import Link from "next/link";
+import Image from "next/image";
 
 
 const POSTS_PER_PAGE = 20;
+
 
 
 const query = `
@@ -27,11 +29,14 @@ category
 `;
 
 
+
 const countQuery = `
 
 count(*[_type == "post"])
 
 `;
+
+
 
 
 
@@ -51,8 +56,10 @@ page?: string
 const params = await searchParams;
 
 
+
 const currentPage =
 Number(params.page || "1");
+
 
 
 const start =
@@ -92,14 +99,17 @@ totalPosts / POSTS_PER_PAGE
 
 
 
+
 return (
 
 <main
+
 className="
 min-h-screen
 bg-neutral-950
 text-white
 "
+
 >
 
 
@@ -112,6 +122,8 @@ searchAction="/posts/search"
 searchPlaceholder="Поиск публикаций..."
 
  />
+
+
 
 
 
@@ -131,12 +143,13 @@ md:pb-12
 >
 
 
-
 <h1
+
 className="
 text-4xl
 font-bold
 "
+
 >
 
 Публикации
@@ -146,17 +159,21 @@ font-bold
 
 
 <p
+
 className="
 mt-4
 text-lg
 text-white/60
 "
+
 >
 
 Короткие экологические материалы,
 факты и визуальные истории.
 
 </p>
+
+
 
 
 
@@ -179,6 +196,7 @@ mt-10
 
 {
 
+
 posts.map((post:any)=>(
 
 
@@ -189,6 +207,7 @@ key={post.slug.current}
 href={`/posts/${post.slug.current}`}
 
 >
+
 
 
 <article
@@ -209,6 +228,8 @@ backdrop-blur-xl
 
 
 
+
+
 {
 
 post.images?.[0] && (
@@ -220,24 +241,22 @@ relative
 w-full
 aspect-[3/4]
 bg-black/20
-flex
-items-center
-justify-center
 overflow-hidden
-p-2
+rounded-t-2xl
 "
 
 >
 
 
-<img
+
+<Image
+
 
 src={
 
 urlFor(post.images[0])
 .width(900)
 .height(1200)
-.fit("max")
 .auto("format")
 .url()
 
@@ -247,21 +266,35 @@ urlFor(post.images[0])
 alt={post.title}
 
 
-className="
-w-full
-h-full
-object-contain
-rounded-xl
+fill
+
+
+sizes="
+(max-width:768px) 50vw,
+(max-width:1200px) 33vw,
+25vw
 "
+
+
+className="
+object-contain
+"
+
+
+
 
 />
 
 
+
 </div>
+
 
 )
 
 }
+
+
 
 
 
@@ -275,6 +308,7 @@ md:p-4
 "
 
 >
+
 
 
 <h2
@@ -292,6 +326,8 @@ leading-tight
 {post.title}
 
 </h2>
+
+
 
 
 
@@ -317,6 +353,7 @@ line-clamp-3
 
 
 
+
 </article>
 
 
@@ -325,6 +362,7 @@ line-clamp-3
 
 
 ))
+
 
 }
 
@@ -336,9 +374,14 @@ line-clamp-3
 
 
 
+
+
+
+
 {
 
 totalPages > 1 && (
+
 
 <div
 
@@ -355,6 +398,7 @@ flex-wrap
 
 {
 
+
 Array.from({
 
 length: totalPages
@@ -363,6 +407,7 @@ length: totalPages
 
 
 const page=index+1;
+
 
 
 return (
@@ -391,6 +436,7 @@ transition
 
 </Link>
 
+
 )
 
 
@@ -400,9 +446,12 @@ transition
 }
 
 
+
 </div>
 
+
 )
+
 
 }
 
@@ -412,10 +461,15 @@ transition
 
 
 
+
+
+
 <Footer />
 
 
+
 </main>
+
 
 )
 

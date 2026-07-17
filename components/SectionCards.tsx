@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import {useState} from "react";
 
 
@@ -33,6 +34,7 @@ const sections = [
 ];
 
 
+
 export default function SectionCards(){
 
 
@@ -53,7 +55,10 @@ md:py-16
 
 
 
+
+
 {/* ДЕСКТОП */}
+
 
 
 <div className="
@@ -65,7 +70,9 @@ h-[520px]
 ">
 
 
-{sections.map((item,index)=>(
+{
+
+sections.map((item,index)=>(
 
 
 <Link
@@ -112,22 +119,30 @@ shadow-2xl
 ">
 
 
-<img
+
+<Image
+
 
 src={item.image}
 
 alt={item.title}
 
+fill
+
+priority={index === 0}
+
+sizes="
+(max-width:1200px) 25vw,
+400px
+"
+
 className={`
 
-absolute
-inset-0
-w-full
-h-full
 object-cover
 
 transition-transform
 duration-700
+
 
 ${
 active === index
@@ -142,6 +157,8 @@ active === index
 
 
 
+
+
 <div className="
 absolute
 inset-0
@@ -152,12 +169,16 @@ to-black/70
 
 
 
+
+
 <div className="
 absolute
 bottom-8
 left-1/2
 -translate-x-1/2
 ">
+
+
 
 <div className="
 
@@ -185,17 +206,24 @@ font-bold
 
 </div>
 
+
+
 </div>
 
 
 
 </div>
+
 
 
 </Link>
 
 
-))}
+))
+
+
+}
+
 
 
 </div>
@@ -203,7 +231,12 @@ font-bold
 
 
 
+
+
+
 {/* МОБИЛЬНАЯ ВЕРСИЯ */}
+
+
 
 
 
@@ -215,7 +248,10 @@ gap-3
 ">
 
 
-{sections.map((item)=>(
+{
+
+
+sections.map((item,index)=>(
 
 
 <Link
@@ -225,6 +261,7 @@ key={item.title}
 href={item.link}
 
 className="
+
 relative
 h-[220px]
 rounded-[1.5rem]
@@ -232,26 +269,36 @@ overflow-hidden
 border
 border-white/20
 shadow-xl
+
 "
 
 >
 
 
-<img
+
+
+<Image
+
 
 src={item.image}
 
 alt={item.title}
 
+fill
+
+priority={index < 2}
+
+sizes="
+50vw
+"
+
 className="
-absolute
-inset-0
-w-full
-h-full
 object-cover
 "
 
 />
+
+
 
 
 
@@ -263,6 +310,8 @@ bg-black/40
 
 
 
+
+
 <div className="
 absolute
 inset-0
@@ -270,6 +319,8 @@ flex
 items-center
 justify-center
 ">
+
+
 
 
 
@@ -289,6 +340,7 @@ shadow-[0_8px_32px_rgba(0,0,0,0.35)]
 ">
 
 
+
 <h2 className="
 
 text-base
@@ -306,22 +358,33 @@ text-center
 </h2>
 
 
+
+</div>
+
+
+
+
+
 </div>
 
 
-
-</div>
 
 
 
 </Link>
 
 
-))}
+))
+
+
+}
 
 
 
 </div>
+
+
+
 
 
 

@@ -1,15 +1,18 @@
 import Link from "next/link";
+import SectionNavigation from "@/components/SectionNavigation";
 
 
 export default function SectionHeader({
 
 searchAction = "/",
-searchPlaceholder = "Поиск..."
+searchPlaceholder = "Поиск...",
+current
 
 }: {
 
 searchAction?: string;
 searchPlaceholder?: string;
+current?: string;
 
 }){
 
@@ -98,9 +101,20 @@ object-contain
 
 <div className="
 flex
+flex-col
+items-end
+gap-3
+ml-auto
+">
+
+
+
+
+
+<div className="
+flex
 items-center
 gap-6
-ml-auto
 ">
 
 
@@ -161,7 +175,8 @@ transition
 
 
 <nav className="
-flex
+hidden
+md:flex
 items-center
 gap-5
 text-white/80
@@ -312,6 +327,19 @@ pointer-events-none
 
 
 </nav>
+
+
+</div>
+
+
+
+
+
+<SectionNavigation
+
+current={current}
+
+/>
 
 
 

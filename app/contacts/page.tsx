@@ -2,8 +2,11 @@ import {client} from "@/sanity/lib/client";
 import {urlFor} from "@/sanity/lib/image";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import ContactButtons from "@/components/ContactButtons";
+
 
 export const dynamic = "force-dynamic";
+
 
 const query = `
 *[_type == "contact"][0]{
@@ -18,6 +21,7 @@ const query = `
   phone
 }
 `;
+
 
 
 export default async function ContactsPage(){
@@ -45,40 +49,47 @@ return (
 
 return (
 
-<main className="
+<main
+className="
 min-h-screen
 bg-neutral-950
 text-white
-">
+"
+>
 
 
 <Header />
 
 
 
-<section className="
+<section
+className="
 max-w-[1100px]
 mx-auto
 px-6
 py-16
-">
+"
+>
 
 
-
-<div className="
+<div
+className="
 grid
 md:grid-cols-2
 gap-12
 items-center
-">
+"
+>
 
 
 
-<div className="
+<div
+className="
 flex
 justify-center
 md:justify-start
-">
+"
+>
 
 
 {contact.photo && (
@@ -99,7 +110,7 @@ w-[55%]
 md:w-full
 "
 
- />
+/>
 
 )}
 
@@ -109,13 +120,16 @@ md:w-full
 
 
 
+
 <div>
 
 
-<h1 className="
+<h1
+className="
 text-5xl
 font-bold
-">
+"
+>
 
 {contact.name}
 
@@ -123,11 +137,14 @@ font-bold
 
 
 
-<p className="
+
+<p
+className="
 mt-6
 text-xl
 text-white/70
-">
+"
+>
 
 {contact.description}
 
@@ -136,127 +153,21 @@ text-white/70
 
 
 
-<div className="
-mt-8
-space-y-4
-">
+<ContactButtons
 
+youtube={contact.youtube}
 
+instagram={contact.instagram}
 
-{contact.youtube && (
+tiktok={contact.tiktok}
 
-<a
-href={contact.youtube}
-className="
-block
-rounded-2xl
-bg-white/10
-px-6
-py-4
-hover:bg-white/20
-"
->
+telegram={contact.telegram}
 
-📺 YouTube
+email={contact.email}
 
-</a>
+phone={contact.phone}
 
-)}
-
-
-
-{contact.instagram && (
-
-<a
-href={contact.instagram}
-className="
-block
-rounded-2xl
-bg-white/10
-px-6
-py-4
-hover:bg-white/20
-"
->
-
-📷 Instagram
-
-</a>
-
-)}
-
-
-
-{contact.tiktok && (
-
-<a
-href={contact.tiktok}
-className="
-block
-rounded-2xl
-bg-white/10
-px-6
-py-4
-hover:bg-white/20
-"
->
-
-🎵 TikTok
-
-</a>
-
-)}
-
-
-
-{contact.telegram && (
-
-<a
-href={contact.telegram}
-className="
-block
-rounded-2xl
-bg-white/10
-px-6
-py-4
-hover:bg-white/20
-"
->
-
-✈ Telegram
-
-</a>
-
-)}
-
-
-
-</div>
-
-
-
-<div className="mt-8 text-white/60">
-
-
-{contact.email && (
-
-<div>
-✉ {contact.email}
-</div>
-
-)}
-
-
-{contact.phone && (
-
-<div>
-☎ {contact.phone}
-</div>
-
-)}
-
-
-</div>
+/>
 
 
 
@@ -264,7 +175,6 @@ hover:bg-white/20
 
 
 </div>
-
 
 
 </section>

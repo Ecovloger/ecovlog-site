@@ -1,159 +1,478 @@
 "use client";
 
-import {useState} from "react";
-import {urlFor} from "@/sanity/lib/image";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { urlFor } from "@/sanity/lib/image";
+
 
 
 export default function ImageCarousel({
-  images,
-  title,
+
+images,
+title
+
 }:{
-  images:any[];
-  title:string;
-}) {
+
+images:any[];
+title:string;
+
+}){
 
 
-  const [current,setCurrent] = useState(0);
-
-
-
-  if(!images || images.length === 0){
-    return null;
-  }
+const [active,setActive] = useState(0);
 
 
 
-  function nextImage(){
+if(!images || images.length===0){
 
-    setCurrent((prev)=>
-      prev === images.length - 1
-      ? 0
-      : prev + 1
-    );
+return null;
 
-  }
-
-
-
-  function prevImage(){
-
-    setCurrent((prev)=>
-      prev === 0
-      ? images.length - 1
-      : prev - 1
-    );
-
-  }
+}
 
 
 
 
-  return (
+const next = ()=>{
 
-    <div className="
-      relative
-      w-full
-    ">
+setActive(
+(active + 1) % images.length
+);
 
-
-      <img
-
-        src={
-          urlFor(images[current])
-          .width(1200)
-          .url()
-        }
-
-        alt={title}
-
-        className="
-          w-full
-          rounded-3xl
-          object-cover
-        "
-
-      />
+};
 
 
 
-      {images.length > 1 && (
+const previous = ()=>{
 
-        <>
+setActive(
+(active - 1 + images.length) % images.length
+);
 
-
-          <button
-
-            onClick={prevImage}
-
-            className="
-              absolute
-              left-4
-              top-1/2
-              -translate-y-1/2
-              bg-black/50
-              rounded-full
-              px-4
-              py-2
-              text-2xl
-            "
-
-          >
-
-            ←
-
-          </button>
+};
 
 
 
 
-          <button
 
-            onClick={nextImage}
+const getPosition = (index:number)=>{
 
-            className="
-              absolute
-              right-4
-              top-1/2
-              -translate-y-1/2
-              bg-black/50
-              rounded-full
-              px-4
-              py-2
-              text-2xl
-            "
 
-          >
-
-            →
-
-          </button>
+const length = images.length;
 
 
 
-          <div className="
-            absolute
-            bottom-4
-            left-1/2
-            -translate-x-1/2
-            bg-black/60
-            px-4
-            py-1
-            rounded-full
-          ">
-
-            {current + 1} / {images.length}
-
-          </div>
-
-
-        </>
-
-      )}
+let position =
+(index - active + length) % length;
 
 
 
-    </div>
+if(position > length/2){
 
-  );
+position -= length;
+
+}
+
+
+
+return position;
+
+
+
+};
+
+
+
+
+
+
+return (
+
+
+
+<div
+
+className="
+relative
+w-full
+h-[520px]
+flex
+items-center
+justify-center
+overflow-hidden
+"
+
+>
+
+
+
+
+<div
+
+className="
+relative
+w-[330px]
+h-[430px]
+"
+
+>
+
+
+
+
+<AnimatePresence>
+
+
+{
+
+images.map((image,index)=>{
+
+
+const position = getPosition(index);
+
+
+
+const isActive = position===0;
+
+
+
+if(Math.abs(position)>3){
+
+return null;
+
+}
+
+
+
+
+
+return (
+
+
+
+<motion.div
+
+key={index}
+
+onClick={()=>{
+
+if(!isActive){
+
+setActive(index);
+
+}else{
+
+next();
+
+}
+
+}}
+
+drag={isActive ? "x":false}
+
+dragConstraints={{
+left:0,
+right:0
+}}
+
+onDragEnd={(e,info)=>{
+
+
+if(info.offset.x < -80){
+
+next();
+
+}
+
+
+if(info.offset.x > 80){
+
+previous();
+
+}
+
+
+}}
+
+animate={{
+
+x:
+position===0
+?
+0
+:
+position>0
+?
+position*75
+:
+position*-75,
+
+
+scale:
+position===0
+?
+1
+:
+0.88 - Math.abs(position)*0.04,
+
+
+rotate:
+position===0
+?
+0
+:
+position>0
+?
+8
+:
+-8,
+
+
+opacity:
+position===0
+?
+1
+:
+Math.max(
+0.25,
+1-Math.abs(position)*0.25
+),
+
+
+zIndex:
+100-Math.abs(position)
+
+
+
+}}
+
+
+
+transition={{
+
+type:"spring",
+
+stiffness:180,
+
+damping:22
+
+}}
+
+
+
+className="
+
+absolute
+inset-0
+cursor-pointer
+
+"
+
+>
+
+
+
+<div
+
+className="
+
+w-full
+h-full
+
+rounded-[32px]
+
+overflow-hidden
+
+border
+border-white/20
+
+bg-white/10
+
+backdrop-blur-2xl
+
+shadow-[0_30px_80px_rgba(0,0,0,0.5)]
+
+"
+
+>
+
+
+<img
+
+
+src={
+
+urlFor(image)
+.width(900)
+.height(900)
+.fit("crop")
+.url()
+
+}
+
+
+alt={title}
+
+
+className="
+
+w-full
+h-full
+
+object-cover
+
+"
+
+
+
+
+/>
+
+
+
+<div
+
+className="
+
+absolute
+inset-0
+
+bg-gradient-to-br
+from-white/20
+via-transparent
+to-transparent
+
+pointer-events-none
+
+"
+
+/>
+
+
+</div>
+
+
+
+</motion.div>
+
+
+
+)
+
+
+})
+
+
+}
+
+
+
+</AnimatePresence>
+
+
+
+
+
+</div>
+
+
+
+
+
+
+
+
+
+<button
+
+onClick={previous}
+
+
+className="
+
+absolute
+left-5
+top-1/2
+-translate-y-1/2
+
+w-14
+h-14
+
+rounded-full
+
+bg-white/10
+
+border
+border-white/20
+
+backdrop-blur-xl
+
+text-2xl
+
+hover:bg-white/20
+
+transition
+
+"
+
+>
+
+‹
+
+</button>
+
+
+
+
+
+
+
+<button
+
+onClick={next}
+
+
+className="
+
+absolute
+right-5
+top-1/2
+-translate-y-1/2
+
+w-14
+h-14
+
+rounded-full
+
+bg-white/10
+
+border
+border-white/20
+
+backdrop-blur-xl
+
+text-2xl
+
+hover:bg-white/20
+
+transition
+
+"
+
+>
+
+›
+
+</button>
+
+
+
+
+
+
+
+</div>
+
+
+)
 
 }

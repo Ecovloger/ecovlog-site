@@ -49,15 +49,20 @@ export const postType = defineType({
 
       name:'images',
 
-      title:'Изображения',
+      title:'Картинки публикации',
 
       type:'array',
+
+      validation: Rule =>
+        Rule.max(20),
+
 
       options:{
 
         layout:'grid'
 
       },
+
 
       of:[
 
@@ -67,7 +72,7 @@ export const postType = defineType({
 
           options:{
 
-            hotspot:true
+            hotspot:false
 
           }
 

@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { urlFor } from "@/sanity/lib/image";
 
 
-
 export default function ImageCarousel({
 
 images,
@@ -23,12 +22,11 @@ const [active,setActive] = useState(0);
 
 
 
-if(!images || images.length===0){
+if(!images || images.length === 0){
 
 return null;
 
 }
-
 
 
 
@@ -53,12 +51,10 @@ setActive(
 
 
 
-
 const getPosition = (index:number)=>{
 
 
 const length = images.length;
-
 
 
 let position =
@@ -66,7 +62,7 @@ let position =
 
 
 
-if(position > length/2){
+if(position > length / 2){
 
 position -= length;
 
@@ -76,10 +72,7 @@ position -= length;
 
 return position;
 
-
-
 };
-
 
 
 
@@ -88,21 +81,19 @@ return position;
 return (
 
 
-
 <div
 
 className="
 relative
 w-full
-h-[520px]
+h-[560px]
+md:h-[650px]
 flex
 items-center
 justify-center
-overflow-hidden
 "
 
 >
-
 
 
 
@@ -110,28 +101,27 @@ overflow-hidden
 
 className="
 relative
-w-[330px]
-h-[430px]
+w-[300px]
+h-[470px]
+md:w-[400px]
+md:h-[580px]
 "
 
 >
 
 
-
-
 <AnimatePresence>
+
 
 
 {
 
+
 images.map((image,index)=>{
 
 
-const position = getPosition(index);
-
-
-
-const isActive = position===0;
+const position =
+getPosition(index);
 
 
 
@@ -143,6 +133,9 @@ return null;
 
 
 
+const isActive =
+position === 0;
+
 
 
 return (
@@ -153,26 +146,33 @@ return (
 
 key={index}
 
+
 onClick={()=>{
 
-if(!isActive){
+if(isActive){
 
-setActive(index);
+next();
 
 }else{
 
-next();
+setActive(index);
 
 }
 
 }}
 
-drag={isActive ? "x":false}
+
+
+drag={isActive ? "x" : false}
+
+
 
 dragConstraints={{
 left:0,
 right:0
 }}
+
+
 
 onDragEnd={(e,info)=>{
 
@@ -193,34 +193,36 @@ previous();
 
 }}
 
+
+
 animate={{
 
 x:
-position===0
+position === 0
 ?
 0
 :
-position>0
+position > 0
 ?
-position*75
+position * 100
 :
-position*-75,
+position * 100,
 
 
 scale:
-position===0
+position === 0
 ?
 1
 :
-0.88 - Math.abs(position)*0.04,
+0.88 - Math.abs(position)*0.05,
 
 
 rotate:
-position===0
+position === 0
 ?
 0
 :
-position>0
+position > 0
 ?
 8
 :
@@ -228,20 +230,18 @@ position>0
 
 
 opacity:
-position===0
+position === 0
 ?
 1
 :
 Math.max(
-0.25,
-1-Math.abs(position)*0.25
+0.3,
+1 - Math.abs(position)*0.25
 ),
 
 
 zIndex:
 100-Math.abs(position)
-
-
 
 }}
 
@@ -251,20 +251,20 @@ transition={{
 
 type:"spring",
 
-stiffness:180,
+stiffness:170,
 
-damping:22
+damping:24
 
 }}
 
 
 
 className="
-
 absolute
 inset-0
-cursor-pointer
-
+flex
+items-center
+justify-center
 "
 
 >
@@ -274,23 +274,19 @@ cursor-pointer
 <div
 
 className="
-
+relative
 w-full
 h-full
-
 rounded-[32px]
-
-overflow-hidden
-
 border
 border-white/20
-
 bg-white/10
-
 backdrop-blur-2xl
-
 shadow-[0_30px_80px_rgba(0,0,0,0.5)]
-
+flex
+items-center
+justify-center
+p-4
 "
 
 >
@@ -302,9 +298,8 @@ shadow-[0_30px_80px_rgba(0,0,0,0.5)]
 src={
 
 urlFor(image)
-.width(900)
-.height(900)
-.fit("crop")
+.width(1200)
+.fit("max")
 .url()
 
 }
@@ -313,39 +308,33 @@ urlFor(image)
 alt={title}
 
 
+
 className="
-
-w-full
-h-full
-
-object-cover
-
+max-w-full
+max-h-full
+object-contain
+rounded-2xl
 "
 
-
-
-
-/>
+ />
 
 
 
 <div
 
 className="
-
 absolute
 inset-0
-
+rounded-[32px]
 bg-gradient-to-br
 from-white/20
 via-transparent
 to-transparent
-
 pointer-events-none
-
 "
 
 />
+
 
 
 </div>
@@ -353,7 +342,6 @@ pointer-events-none
 
 
 </motion.div>
-
 
 
 )
@@ -369,11 +357,7 @@ pointer-events-none
 </AnimatePresence>
 
 
-
-
-
 </div>
-
 
 
 
@@ -386,32 +370,22 @@ pointer-events-none
 
 onClick={previous}
 
-
 className="
-
 absolute
-left-5
+left-3
+md:left-5
 top-1/2
 -translate-y-1/2
-
-w-14
-h-14
-
+w-12
+h-12
 rounded-full
-
 bg-white/10
-
 border
 border-white/20
-
 backdrop-blur-xl
-
 text-2xl
-
 hover:bg-white/20
-
 transition
-
 "
 
 >
@@ -424,38 +398,26 @@ transition
 
 
 
-
-
 <button
 
 onClick={next}
 
-
 className="
-
 absolute
-right-5
+right-3
+md:right-5
 top-1/2
 -translate-y-1/2
-
-w-14
-h-14
-
+w-12
+h-12
 rounded-full
-
 bg-white/10
-
 border
 border-white/20
-
 backdrop-blur-xl
-
 text-2xl
-
 hover:bg-white/20
-
 transition
-
 "
 
 >
@@ -463,10 +425,6 @@ transition
 ›
 
 </button>
-
-
-
-
 
 
 

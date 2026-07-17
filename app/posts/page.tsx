@@ -8,7 +8,6 @@ import Link from "next/link";
 const POSTS_PER_PAGE = 20;
 
 
-
 const query = `
 
 *[_type == "post"]
@@ -28,25 +27,11 @@ category
 `;
 
 
-
 const countQuery = `
 
 count(*[_type == "post"])
 
 `;
-
-
-
-const categories = {
-
-eco: "Экология",
-animals: "Животные",
-nature: "Природа",
-other: "Другое",
-
-};
-
-
 
 
 
@@ -66,15 +51,12 @@ page?: string
 const params = await searchParams;
 
 
-
 const currentPage =
 Number(params.page || "1");
 
 
-
 const start =
 (currentPage - 1) * POSTS_PER_PAGE;
-
 
 
 const end =
@@ -82,35 +64,24 @@ start + POSTS_PER_PAGE;
 
 
 
-
-
-const [posts, totalPosts] =
+const [posts,totalPosts] =
 await Promise.all([
 
 
 client.fetch(
-
 query,
-
 {
 start,
 end
 }
-
 ),
 
 
-
 client.fetch(
-
 countQuery
-
 )
 
-
 ]);
-
-
 
 
 
@@ -118,10 +89,6 @@ const totalPages =
 Math.ceil(
 totalPosts / POSTS_PER_PAGE
 );
-
-
-
-
 
 
 
@@ -136,7 +103,6 @@ text-white
 >
 
 
-
 <SectionHeader
 
 current="/posts"
@@ -146,10 +112,6 @@ searchAction="/posts/search"
 searchPlaceholder="Поиск публикаций..."
 
  />
-
-
-
-
 
 
 
@@ -170,15 +132,11 @@ md:pb-12
 
 
 
-
-
 <h1
-
 className="
 text-4xl
 font-bold
 "
-
 >
 
 Публикации
@@ -187,17 +145,12 @@ font-bold
 
 
 
-
-
-
 <p
-
 className="
 mt-4
 text-lg
 text-white/60
 "
-
 >
 
 Короткие экологические материалы,
@@ -209,30 +162,24 @@ text-white/60
 
 
 
-
-
-
-
 <div
 
 className="
 grid
-sm:grid-cols-2
+grid-cols-2
 lg:grid-cols-3
 xl:grid-cols-4
-gap-6
+gap-3
+md:gap-6
 mt-10
 "
 
 >
 
 
-
-
 {
 
 posts.map((post:any)=>(
-
 
 
 <Link
@@ -242,8 +189,6 @@ key={post.slug.current}
 href={`/posts/${post.slug.current}`}
 
 >
-
-
 
 
 <article
@@ -264,11 +209,25 @@ backdrop-blur-xl
 
 
 
-
-
 {
 
 post.images?.[0] && (
+
+<div
+
+className="
+relative
+w-full
+aspect-[3/4]
+bg-black/20
+flex
+items-center
+justify-center
+overflow-hidden
+p-2
+"
+
+>
 
 
 <img
@@ -276,22 +235,29 @@ post.images?.[0] && (
 src={
 
 urlFor(post.images[0])
-.width(500)
-.height(500)
+.width(900)
+.height(1200)
+.fit("max")
+.auto("format")
 .url()
 
 }
 
+
 alt={post.title}
+
 
 className="
 w-full
-aspect-square
-object-cover
+h-full
+object-contain
+rounded-xl
 "
 
 />
 
+
+</div>
 
 )
 
@@ -301,58 +267,24 @@ object-cover
 
 
 
-
-
-
 <div
 
 className="
-p-4
+p-3
+md:p-4
 "
 
 >
-
-
-
-
-
-<div
-
-className="
-text-xs
-text-green-400
-uppercase
-"
-
->
-
-
-{
-
-categories[
-post.category as keyof typeof categories
-]
-
-}
-
-
-</div>
-
-
-
-
-
-
-
 
 
 <h2
 
 className="
-mt-2
-text-xl
+text-sm
+md:text-xl
 font-bold
 line-clamp-2
+leading-tight
 "
 
 >
@@ -363,17 +295,12 @@ line-clamp-2
 
 
 
-
-
-
-
-
-
 <p
 
 className="
 mt-2
-text-sm
+text-xs
+md:text-sm
 text-white/60
 line-clamp-3
 "
@@ -386,21 +313,11 @@ line-clamp-3
 
 
 
-
-
-
-
 </div>
 
 
 
-
-
-
-
 </article>
-
-
 
 
 
@@ -409,11 +326,7 @@ line-clamp-3
 
 ))
 
-
 }
-
-
-
 
 
 
@@ -423,14 +336,9 @@ line-clamp-3
 
 
 
-
-
-
-
 {
 
 totalPages > 1 && (
-
 
 <div
 
@@ -447,7 +355,6 @@ flex-wrap
 
 {
 
-
 Array.from({
 
 length: totalPages
@@ -458,10 +365,7 @@ length: totalPages
 const page=index+1;
 
 
-
 return (
-
-
 
 <Link
 
@@ -469,38 +373,23 @@ key={page}
 
 href={`/posts?page=${page}`}
 
-className={`
-
+className="
 px-4
 py-2
 rounded-full
 text-sm
 border
+border-white/20
+bg-white/10
+hover:bg-white/20
 transition
-
-
-${
-
-currentPage === page
-
-?
-
-"bg-white text-black border-white"
-
-:
-
-"bg-white/10 text-white border-white/20 hover:bg-white/20"
-
-}
-
-`}
+"
 
 >
 
 {page}
 
 </Link>
-
 
 )
 
@@ -511,16 +400,11 @@ currentPage === page
 }
 
 
-
-
 </div>
-
 
 )
 
-
 }
-
 
 
 
@@ -528,18 +412,10 @@ currentPage === page
 
 
 
-
-
-
-
 <Footer />
 
 
-
-
-
 </main>
-
 
 )
 

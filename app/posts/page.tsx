@@ -60,8 +60,12 @@ text-white
 <section className="
 max-w-[1400px]
 mx-auto
-px-6
-py-12
+px-3
+md:px-6
+pt-2
+md:pt-12
+pb-6
+md:pb-12
 ">
 
 

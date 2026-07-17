@@ -19,7 +19,8 @@ text-white
 
 
 <section className="
-pt-32
+pt-0
+md:pt-6
 ">
 
 

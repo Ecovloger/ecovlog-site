@@ -136,8 +136,10 @@ max-w-[1500px]
 mx-auto
 px-3
 md:px-6
-py-6
-md:py-12
+pt-2
+md:pt-12
+pb-6
+md:pb-12
 ">
 
 

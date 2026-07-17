@@ -14,10 +14,6 @@ export const structure: StructureResolver = (S) =>
         .title('Статьи'),
 
 
-      S.documentTypeListItem('news')
-        .title('Новости'),
-
-
       S.documentTypeListItem('post')
         .title('Публикации'),
 

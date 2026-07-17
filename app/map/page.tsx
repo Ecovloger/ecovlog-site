@@ -23,7 +23,9 @@ text-white
 max-w-[1200px]
 mx-auto
 px-6
-py-20
+pt-4
+md:pt-20
+pb-20
 text-center
 ">
 

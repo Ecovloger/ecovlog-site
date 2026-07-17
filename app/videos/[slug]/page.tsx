@@ -36,7 +36,71 @@ function getYoutubeId(url: string) {
   return null;
 }
 
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{slug: string}>
+}) {
 
+
+  const {slug} = await params;
+
+
+  const video = await client.fetch(query, {
+    slug,
+  });
+
+
+  if (!video) {
+
+    return {
+      title: "Видео не найдено"
+    }
+
+  }
+
+
+  const youtubeId = getYoutubeId(video.youtubeUrl);
+
+
+  const previewImage = youtubeId
+    ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`
+    : undefined;
+
+
+  return {
+
+    title: video.title,
+
+    description: video.description,
+
+    openGraph: {
+
+      title: video.title,
+
+      description: video.description,
+
+      images: previewImage ? [previewImage] : undefined,
+
+      type: "video.other"
+
+    },
+
+    twitter: {
+
+      card: "summary_large_image",
+
+      title: video.title,
+
+      description: video.description,
+
+      images: previewImage ? [previewImage] : undefined
+
+    }
+
+  }
+
+}
 
 export default async function VideoPage({
   params,

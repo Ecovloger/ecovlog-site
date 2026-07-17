@@ -33,7 +33,79 @@ analytics:"Аналитика"
 
 };
 
+export async function generateMetadata({
 
+params,
+
+}: {
+
+params: Promise<{
+slug: string
+}>
+
+}) {
+
+
+const {slug} = await params;
+
+
+const article = await client.fetch(
+
+query,
+
+{
+slug
+}
+
+);
+
+
+if(!article){
+
+return {
+title: "Статья не найдена"
+}
+
+}
+
+
+return {
+
+title: article.title,
+
+description: article.description,
+
+openGraph: {
+
+title: article.title,
+
+description: article.description,
+
+images: article.cover
+? [urlFor(article.cover).width(1200).height(630).url()]
+: undefined,
+
+type: "article"
+
+},
+
+twitter: {
+
+card: "summary_large_image",
+
+title: article.title,
+
+description: article.description,
+
+images: article.cover
+? [urlFor(article.cover).width(1200).height(630).url()]
+: undefined
+
+}
+
+}
+
+}
 
 export default async function ArticlePage({
 

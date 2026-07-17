@@ -1,6 +1,5 @@
 "use client";
 
-
 import Link from "next/link";
 import {useState} from "react";
 
@@ -34,7 +33,6 @@ const sections = [
 ];
 
 
-
 export default function SectionCards(){
 
 
@@ -54,18 +52,8 @@ md:py-16
 ">
 
 
-<div className="
-flex
-gap-3
-md:gap-5
-justify-center
-items-center
-h-[320px]
-md:h-[520px]
-">
 
-
-{/* ДЕСКТОПНАЯ ВЕРСИЯ */}
+{/* ДЕСКТОП */}
 
 
 <div className="
@@ -91,20 +79,16 @@ onMouseEnter={()=>setActive(index)}
 onMouseLeave={()=>setActive(null)}
 
 className={`
+
 transition-all
-duration-500
-ease-out
+duration-700
+ease-[cubic-bezier(0.34,1.56,0.64,1)]
 
 ${
-
 active === index
-
-? "flex-[1.35]"
-
+? "flex-[1.4]"
 : active !== null
-
-? "flex-[0.85]"
-
+? "flex-[0.8]"
 : "flex-1"
 
 }
@@ -115,12 +99,16 @@ active === index
 
 
 <div className="
+
 relative
-h-[450px]
-rounded-3xl
+h-[520px]
+rounded-[2rem]
 overflow-hidden
 cursor-pointer
+border
+border-white/10
 shadow-2xl
+
 ">
 
 
@@ -130,13 +118,25 @@ src={item.image}
 
 alt={item.title}
 
-className="
+className={`
+
 absolute
 inset-0
 w-full
 h-full
 object-cover
-"
+
+transition-transform
+duration-700
+
+${
+active === index
+? "scale-110"
+: "scale-100"
+
+}
+
+`}
 
 />
 
@@ -145,25 +145,47 @@ object-cover
 <div className="
 absolute
 inset-0
-bg-black/40
-"
-/>
+bg-gradient-to-b
+from-black/10
+to-black/70
+"/>
 
+
+
+<div className="
+absolute
+bottom-8
+left-1/2
+-translate-x-1/2
+">
+
+<div className="
+
+backdrop-blur-xl
+bg-white/10
+border
+border-white/20
+rounded-full
+px-10
+py-4
+shadow-xl
+
+">
 
 
 <h2 className="
-absolute
-bottom-8
-left-0
-right-0
-text-center
-text-4xl
+text-3xl
 font-bold
 ">
 
 {item.title}
 
 </h2>
+
+
+</div>
+
+</div>
 
 
 
@@ -181,16 +203,15 @@ font-bold
 
 
 
-
 {/* МОБИЛЬНАЯ ВЕРСИЯ */}
 
 
+
 <div className="
-flex
 md:hidden
-w-full
-gap-2
-h-[300px]
+grid
+grid-cols-2
+gap-3
 ">
 
 
@@ -204,19 +225,16 @@ key={item.title}
 href={item.link}
 
 className="
-flex-1
+relative
+h-[220px]
+rounded-[1.5rem]
+overflow-hidden
+border
+border-white/20
+shadow-xl
 "
 
 >
-
-
-<div className="
-relative
-h-[300px]
-rounded-2xl
-overflow-hidden
-shadow-xl
-">
 
 
 <img
@@ -241,48 +259,59 @@ object-cover
 absolute
 inset-0
 bg-black/40
-"
-/>
+"/>
 
 
 
-<h2 className="
+<div className="
 absolute
 inset-0
 flex
-flex-col
 items-center
 justify-center
-text-lg
-font-bold
-tracking-widest
-text-center
 ">
 
 
-{item.title.split("").map((letter,index)=>(
 
-<span
+<div className="
 
-key={index}
+backdrop-blur-2xl
+bg-white/15
+border
+border-white/25
+rounded-2xl
 
-className="block"
+px-4
+py-3
 
->
+shadow-[0_8px_32px_rgba(0,0,0,0.35)]
 
-{letter}
+">
 
-</span>
 
-))}
+<h2 className="
 
+text-base
+font-bold
+text-white
+leading-[1.05]
+text-center
+
+">
+
+
+{item.title}
 
 
 </h2>
 
 
+</div>
+
+
 
 </div>
+
 
 
 </Link>
@@ -291,12 +320,9 @@ className="block"
 ))}
 
 
-</div>
-
-
-
 
 </div>
+
 
 
 </section>

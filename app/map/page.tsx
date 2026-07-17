@@ -22,17 +22,20 @@ text-white
 <section className="
 max-w-[1200px]
 mx-auto
-px-6
-pt-4
+px-4
+md:px-6
+pt-2
 md:pt-20
-pb-20
+pb-10
+md:pb-20
 text-center
 ">
 
 
 
 <h1 className="
-text-5xl
+text-3xl
+md:text-5xl
 font-bold
 ">
 
@@ -43,8 +46,10 @@ font-bold
 
 
 <p className="
-mt-6
-text-xl
+mt-4
+md:mt-6
+text-base
+md:text-xl
 text-white/60
 max-w-3xl
 mx-auto
@@ -57,6 +62,8 @@ mx-auto
 
 
 
+
+
 <Link
 
 href="https://greenfront.su/eco-map/"
@@ -65,7 +72,8 @@ target="_blank"
 
 className="
 block
-mt-12
+mt-6
+md:mt-12
 mx-auto
 max-w-[750px]
 group
@@ -79,25 +87,18 @@ group
 relative
 rounded-3xl
 overflow-hidden
-bg-white/5
+bg-white/10
 border
-border-white/10
-shadow-2xl
+border-white/20
+backdrop-blur-xl
+shadow-[0_20px_60px_rgba(255,255,255,0.12)]
 transition-all
 duration-500
-group-hover:scale-105
-group-hover:shadow-white/20
+group-hover:scale-[1.03]
 ">
 
 
 
-<div className="
-h-[450px]
-flex
-items-center
-justify-center
-p-10
-">
 
 
 <img
@@ -107,16 +108,15 @@ src="/images/ecocard.png"
 alt="Народная карта экологических нарушений"
 
 className="
-max-h-full
-max-w-full
+w-full
+h-auto
 object-contain
+p-2
+md:p-6
 "
 
 />
 
-
-
-</div>
 
 
 
@@ -124,11 +124,14 @@ object-contain
 <div className="
 absolute
 inset-0
-bg-black/30
-group-hover:bg-black/10
-transition
+bg-gradient-to-b
+from-transparent
+via-transparent
+to-black/40
 "
 />
+
+
 
 
 
@@ -141,14 +144,23 @@ justify-center
 ">
 
 
+
 <span className="
-text-3xl
+text-xl
+md:text-3xl
 font-bold
-bg-black/70
-px-8
-py-4
+bg-black/60
+border
+border-white/20
+backdrop-blur-xl
+px-5
+md:px-8
+py-3
+md:py-4
 rounded-full
-backdrop-blur-sm
+shadow-xl
+transition
+group-hover:bg-black/75
 ">
 
 Открыть Экокарту
@@ -156,7 +168,10 @@ backdrop-blur-sm
 </span>
 
 
+
 </div>
+
+
 
 
 
@@ -165,6 +180,8 @@ backdrop-blur-sm
 
 
 </Link>
+
+
 
 
 

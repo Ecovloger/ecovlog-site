@@ -1,150 +1,130 @@
 import Link from "next/link";
 
+export default function Header() {
+  return (
+    <header
+      className="
+        w-full
+        flex
+        items-center
+        justify-between
 
-export default function Header(){
+        px-3
+        py-3
 
+        md:px-6
+        md:py-5
 
-return (
+        gap-3
+      "
+    >
+      <Link
+        href="/"
+        className="
+          group
+          hover:scale-105
+          transition
+          duration-300
+          shrink-0
+        "
+      >
+        <div
+          className="
+            relative
+            overflow-hidden
+            rounded-3xl
+            p-2
+            bg-white/10
+            border
+            border-white/20
+            backdrop-blur-2xl
+            shadow-[0_8px_40px_rgba(255,255,255,0.15)]
+          "
+        >
+          <div
+            className="
+              absolute
+              inset-0
+              bg-gradient-to-br
+              from-white/30
+              via-transparent
+              to-transparent
+              pointer-events-none
+            "
+          />
 
-<header className="
-w-full
-px-6
-py-5
-flex
-items-center
-justify-between
-gap-6
-">
+          <img
+            src="/images/ecovlog-logo.png"
+            alt="EcoVlog"
+            className="
+              relative
+              h-12
+              md:h-16
+              w-auto
+              object-contain
+            "
+          />
+        </div>
+      </Link>
 
+      <nav
+        className="
+          flex
+          items-center
+          shrink-0
+        "
+      >
+        <Link
+          href="/contacts"
+          className="
+            relative
+            overflow-hidden
 
-<Link
+            bg-white/10
+            text-white
 
-href="/"
+            px-4
+            md:px-6
 
-className="
-group
-hover:scale-105
-transition
-duration-300
-shrink-0
-"
+            py-2
 
->
+            rounded-full
 
+            font-semibold
 
-<div
-className="
-relative
-overflow-hidden
-rounded-3xl
-p-2
-bg-white/10
-border
-border-white/20
-backdrop-blur-2xl
-shadow-[0_8px_40px_rgba(255,255,255,0.15)]
-"
->
+            text-sm
+            md:text-base
 
+            border
+            border-white/25
 
-<div
-className="
-absolute
-inset-0
-bg-gradient-to-br
-from-white/30
-via-transparent
-to-transparent
-pointer-events-none
-"
-/>
+            backdrop-blur-xl
 
+            shadow-[0_8px_30px_rgba(255,255,255,0.12)]
 
-<img
+            hover:bg-white/20
+            hover:scale-105
 
-src="/images/ecovlog-logo.png"
+            transition
+            duration-300
+          "
+        >
+          <span className="relative z-10">
+            Контакты
+          </span>
 
-alt="EcoVlog"
-
-className="
-relative
-h-16
-w-auto
-object-contain
-"
-
-/>
-
-
-</div>
-
-
-</Link>
-
-
-
-<nav className="
-flex
-items-center
-gap-5
-">
-
-
-<Link
-
-href="/contacts"
-
-className="
-relative
-overflow-hidden
-bg-white/10
-text-white
-px-6
-py-2
-rounded-full
-font-semibold
-border
-border-white/25
-backdrop-blur-xl
-shadow-[0_8px_30px_rgba(255,255,255,0.12)]
-hover:bg-white/20
-hover:scale-105
-transition
-duration-300
-"
-
->
-
-<span className="
-relative
-z-10
-">
-Контакты
-</span>
-
-
-<div
-className="
-absolute
-inset-0
-bg-gradient-to-br
-from-white/30
-via-transparent
-to-transparent
-"
-/>
-
-
-</Link>
-
-
-
-</nav>
-
-
-
-</header>
-
-)
-
+          <div
+            className="
+              absolute
+              inset-0
+              bg-gradient-to-br
+              from-white/30
+              via-transparent
+              to-transparent
+            "
+          />
+        </Link>
+      </nav>
+    </header>
+  );
 }

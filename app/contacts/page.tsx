@@ -4,9 +4,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ContactButtons from "@/components/ContactButtons";
 
-
 export const dynamic = "force-dynamic";
-
 
 const query = `
 *[_type == "contact"][0]{
@@ -22,170 +20,144 @@ const query = `
 }
 `;
 
-
-
 export default async function ContactsPage(){
 
+  const contact = await client.fetch(query);
+
+  if(!contact){
+    return (
+      <main className="p-10 text-white">
+        Контакты не найдены
+      </main>
+    )
+  }
+
+  return (
+    <main
+      className="
+      min-h-screen
+      bg-neutral-950
+      text-white
+    "
+    >
+
+      <Header />
 
-const contact = await client.fetch(query);
+      <section
+        className="
+        max-w-[1100px]
+        mx-auto
+
+        px-4
+        md:px-6
+
+        pt-2
+        pb-8
+
+        md:py-16
+      "
+      >
 
+        <div
+          className="
+          grid
+          md:grid-cols-2
 
+          gap-2
+          md:gap-12
 
-if(!contact){
+          items-center
+        "
+        >
 
-return (
+          {/* Фото */}
 
-<main className="p-10 text-white">
+          <div
+            className="
+            flex
+            justify-center
+            md:justify-start
+          "
+          >
 
-Контакты не найдены
+            {contact.photo && (
 
-</main>
+              <img
+                src={
+                  urlFor(contact.photo)
+                    .width(700)
+                    .url()
+                }
 
-)
+                alt={contact.name}
 
-}
+                className="
+                rounded-3xl
 
+                w-[38%]
+                sm:w-[34%]
 
+                md:w-full
+              "
+              />
 
-return (
+            )}
 
-<main
-className="
-min-h-screen
-bg-neutral-950
-text-white
-"
->
+          </div>
 
+          {/* Правая колонка */}
 
-<Header />
+          <div>
 
+            <h1
+              className="
+              text-4xl
+              md:text-5xl
 
+              font-bold
+              leading-tight
 
-<section
-className="
-max-w-[1100px]
-mx-auto
-px-6
-py-16
-"
->
+              text-center
+              md:text-left
+            "
+            >
+              {contact.name}
+            </h1>
 
+            <p
+              className="
+              mt-2
+              md:mt-6
 
-<div
-className="
-grid
-md:grid-cols-2
-gap-12
-items-center
-"
->
+              text-sm
+              md:text-xl
 
+              text-white/70
 
+              text-center
+              md:text-left
+            "
+            >
+              {contact.description}
+            </p>
 
-<div
-className="
-flex
-justify-center
-md:justify-start
-"
->
+            <ContactButtons
+              youtube={contact.youtube}
+              instagram={contact.instagram}
+              tiktok={contact.tiktok}
+              telegram={contact.telegram}
+              email={contact.email}
+              phone={contact.phone}
+            />
 
+          </div>
 
-{contact.photo && (
+        </div>
 
-<img
+      </section>
 
-src={
-urlFor(contact.photo)
-.width(700)
-.url()
-}
+      <Footer />
 
-alt={contact.name}
-
-className="
-rounded-3xl
-w-[55%]
-md:w-full
-"
-
-/>
-
-)}
-
-
-</div>
-
-
-
-
-
-<div>
-
-
-<h1
-className="
-text-5xl
-font-bold
-"
->
-
-{contact.name}
-
-</h1>
-
-
-
-
-<p
-className="
-mt-6
-text-xl
-text-white/70
-"
->
-
-{contact.description}
-
-</p>
-
-
-
-
-<ContactButtons
-
-youtube={contact.youtube}
-
-instagram={contact.instagram}
-
-tiktok={contact.tiktok}
-
-telegram={contact.telegram}
-
-email={contact.email}
-
-phone={contact.phone}
-
-/>
-
-
-
-</div>
-
-
-</div>
-
-
-</section>
-
-
-
-<Footer />
-
-
-</main>
-
-)
-
+    </main>
+  )
 }

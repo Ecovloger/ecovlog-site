@@ -1,0 +1,6232 @@
+============================================================
+СТРУКТУРА ПРОЕКТА
+============================================================
+
+app/articles/[slug]/page.tsx
+app/articles/page.tsx
+app/contacts/page.tsx
+app/globals.css
+app/layout.tsx
+app/map/page.tsx
+app/news/page.tsx
+app/page.tsx
+app/posts/[slug]/page.tsx
+app/posts/page.tsx
+app/science/page.tsx
+app/studio/[[...tool]]/page.tsx
+app/videos/[slug]/page.tsx
+app/videos/page.tsx
+components/BackButton.tsx
+components/ContactButtons.tsx
+components/Footer.tsx
+components/Header.tsx
+components/HomeHeader.tsx
+components/ImageCarousel.tsx
+components/PageBackground.tsx
+components/Pagination.tsx
+components/SectionCards.tsx
+components/SectionHeader.tsx
+components/SectionNavigation.tsx
+components/VideoCard.tsx
+sanity/env.ts
+sanity/lib/client.ts
+sanity/lib/image.ts
+sanity/lib/live.ts
+sanity/schemaTypes/articleType.ts
+sanity/schemaTypes/authorType.ts
+sanity/schemaTypes/blockContentType.ts
+sanity/schemaTypes/categoryType.ts
+sanity/schemaTypes/contactType.ts
+sanity/schemaTypes/index.ts
+sanity/schemaTypes/postType.ts
+sanity/schemaTypes/videoType.ts
+sanity/structure.ts
+
+============================================================
+ФАЙЛЫ В PUBLIC — ТОЛЬКО СПИСОК, БЕЗ СОДЕРЖИМОГО
+============================================================
+
+public/.DS_Store
+public/file.svg
+public/globe.svg
+public/icons/.DS_Store
+public/icons/email.svg
+public/icons/instagram.svg
+public/icons/telegram.svg
+public/icons/tiktok.svg
+public/icons/youtube.svg
+public/images/.DS_Store
+public/images/articles.jpg
+public/images/articles.webp
+public/images/ecocard.png
+public/images/ecovlog-icon.png
+public/images/ecovlog-logo.png
+public/images/map.jpg
+public/images/map.webp
+public/images/posts.jpg
+public/images/posts.webp
+public/images/site-bg.jpg
+public/images/video.jpg
+public/images/video.webp
+public/next.svg
+public/vercel.svg
+public/window.svg
+
+============================================================
+СОДЕРЖИМОЕ ФАЙЛОВ
+============================================================
+
+
+============================================================
+FILE: package.json
+============================================================
+
+{
+  "name": "ecovlog-site",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@sanity/icons": "^5.1.0",
+    "@sanity/image-url": "^2.1.1",
+    "@sanity/vision": "^5.31.1",
+    "framer-motion": "^12.42.2",
+    "next": "16.2.10",
+    "next-sanity": "^13.1.3",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "sanity": "^5.31.1",
+    "styled-components": "^6.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.10",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
+
+
+============================================================
+FILE: tsconfig.json
+============================================================
+
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts"
+  ],
+  "exclude": ["node_modules"]
+}
+
+
+============================================================
+FILE: next.config.ts
+============================================================
+
+import type { NextConfig } from "next";
+
+
+const nextConfig: NextConfig = {
+
+  images: {
+
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "cdn.sanity.io",
+      },
+    ],
+
+    formats: [
+      "image/avif",
+      "image/webp",
+    ],
+
+  },
+
+
+};
+
+export default nextConfig;
+
+============================================================
+FILE: sanity.config.ts
+============================================================
+
+'use client'
+
+/**
+ * This configuration is used to for the Sanity Studio that’s mounted on the `/app/studio/[[...tool]]/page.tsx` route
+ */
+
+import {visionTool} from '@sanity/vision'
+import {defineConfig} from 'sanity'
+import {structureTool} from 'sanity/structure'
+
+// Go to https://www.sanity.io/docs/api-versioning to learn how API versioning works
+import {apiVersion, dataset, projectId} from './sanity/env'
+import {schema} from './sanity/schemaTypes'
+import {structure} from './sanity/structure'
+
+export default defineConfig({
+  basePath: '/studio',
+  projectId,
+  dataset,
+  // Add and edit the content schema in the './sanity/schemaTypes' folder
+  schema,
+  plugins: [
+    structureTool({structure}),
+    // Vision is for querying with GROQ from inside the Studio
+    // https://www.sanity.io/docs/the-vision-plugin
+    visionTool({defaultApiVersion: apiVersion}),
+  ],
+})
+
+
+============================================================
+FILE: sanity.cli.ts
+============================================================
+
+/**
+* This configuration file lets you run `$ sanity [command]` in this folder
+* Go to https://www.sanity.io/docs/cli to learn more.
+**/
+import { defineCliConfig } from 'sanity/cli'
+
+const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID
+const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET
+
+export default defineCliConfig({ api: { projectId, dataset } })
+
+
+============================================================
+FILE: postcss.config.mjs
+============================================================
+
+const config = {
+  plugins: {
+    "@tailwindcss/postcss": {},
+  },
+};
+
+export default config;
+
+
+============================================================
+FILE: eslint.config.mjs
+============================================================
+
+import { defineConfig, globalIgnores } from "eslint/config";
+import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTs from "eslint-config-next/typescript";
+
+const eslintConfig = defineConfig([
+  ...nextVitals,
+  ...nextTs,
+  // Override default ignores of eslint-config-next.
+  globalIgnores([
+    // Default ignores of eslint-config-next:
+    ".next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+  ]),
+]);
+
+export default eslintConfig;
+
+
+============================================================
+FILE: app/articles/[slug]/page.tsx
+============================================================
+
+import {client} from "@/sanity/lib/client";
+import {urlFor} from "@/sanity/lib/image";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+import {PortableText} from "@portabletext/react";
+
+
+const query = `
+
+*[_type == "article" && slug.current == $slug][0]{
+
+title,
+category,
+cover,
+description,
+content,
+date
+
+}
+
+`;
+
+
+const categories = {
+
+news:"Новости",
+
+investigation:"Расследования",
+
+science:"Научные материалы",
+
+analytics:"Аналитика"
+
+};
+
+export async function generateMetadata({
+
+params,
+
+}: {
+
+params: Promise<{
+slug: string
+}>
+
+}) {
+
+
+const {slug} = await params;
+
+
+const article = await client.fetch(
+
+query,
+
+{
+slug
+}
+
+);
+
+
+if(!article){
+
+return {
+title: "Статья не найдена"
+}
+
+}
+
+
+return {
+
+title: article.title,
+
+description: article.description,
+
+openGraph: {
+
+title: article.title,
+
+description: article.description,
+
+images: article.cover
+? [urlFor(article.cover).width(1200).height(630).url()]
+: undefined,
+
+type: "article"
+
+},
+
+twitter: {
+
+card: "summary_large_image",
+
+title: article.title,
+
+description: article.description,
+
+images: article.cover
+? [urlFor(article.cover).width(1200).height(630).url()]
+: undefined
+
+}
+
+}
+
+}
+
+export default async function ArticlePage({
+
+params,
+
+}:{
+
+params: Promise<{
+slug:string
+}>
+
+}){
+
+
+const {slug} = await params;
+
+
+
+const article = await client.fetch(
+
+query,
+
+{
+slug
+}
+
+);
+
+
+
+if(!article){
+
+return (
+
+<main className="
+min-h-screen
+bg-neutral-950
+text-white
+p-10
+">
+
+Статья не найдена
+
+</main>
+
+)
+
+}
+
+
+
+return (
+
+<main className="
+min-h-screen
+bg-neutral-950
+text-white
+">
+
+
+<Header />
+
+
+
+<article className="
+max-w-[900px]
+mx-auto
+px-6
+py-16
+">
+
+
+
+<div className="
+text-green-400
+text-sm
+uppercase
+">
+
+{
+categories[article.category as keyof typeof categories]
+}
+
+</div>
+
+
+
+
+<h1 className="
+mt-4
+text-4xl
+md:text-5xl
+font-bold
+leading-tight
+">
+
+{article.title}
+
+</h1>
+
+
+
+
+<div className="
+mt-4
+text-white/40
+">
+
+{article.date}
+
+</div>
+
+
+
+
+
+{article.cover && (
+
+<div className="
+mt-8
+flex
+justify-center
+">
+
+
+<img
+
+src={
+urlFor(article.cover)
+.width(600)
+.url()
+}
+
+alt={article.title}
+
+className="
+rounded-2xl
+w-full
+max-w-[600px]
+max-h-[350px]
+object-cover
+"
+
+/>
+
+
+</div>
+
+)}
+
+
+
+
+
+{article.description && (
+
+<p className="
+mt-8
+text-xl
+text-white/70
+leading-relaxed
+">
+
+{article.description}
+
+</p>
+
+)}
+
+
+
+
+
+
+<div className="
+mt-10
+prose
+prose-invert
+prose-lg
+max-w-none
+">
+
+
+<PortableText value={article.content}/>
+
+
+</div>
+
+
+
+
+</article>
+
+
+
+<Footer />
+
+
+</main>
+
+)
+
+}
+
+============================================================
+FILE: app/articles/page.tsx
+============================================================
+
+import {client} from "@/sanity/lib/client";
+import {urlFor} from "@/sanity/lib/image";
+import SectionHeader from "@/components/SectionHeader";
+import Footer from "@/components/Footer";
+import Link from "next/link";
+
+
+const ARTICLES_PER_PAGE = 20;
+
+
+
+const categories = [
+
+{
+title:"Все",
+value:""
+},
+
+{
+title:"Новости",
+value:"news"
+},
+
+{
+title:"Расследования",
+value:"investigation"
+},
+
+{
+title:"Научные материалы",
+value:"science"
+},
+
+{
+title:"Аналитика",
+value:"analytics"
+}
+
+];
+
+
+
+
+
+export default async function ArticlesPage({
+
+searchParams,
+
+}:{
+
+searchParams: Promise<{
+category?: string;
+search?: string;
+page?: string;
+}>
+
+}) {
+
+
+
+const params = await searchParams;
+
+
+
+const category =
+params.category || "";
+
+
+
+const search =
+params.search
+?
+`*${params.search}*`
+:
+null;
+
+
+
+const currentPage =
+Number(params.page || "1");
+
+
+
+
+
+
+const query = `
+
+*[
+_type == "article"
+
+&&
+
+(
+!defined($category)
+||
+category == $category
+)
+
+&&
+
+(
+!defined($search)
+||
+title match $search
+||
+description match $search
+)
+
+]
+
+| order(date desc){
+
+title,
+slug,
+category,
+cover,
+description,
+date
+
+}
+
+`;
+
+
+
+
+
+const articles = await client.fetch(
+
+query,
+
+{
+
+category:
+category || null,
+
+search
+
+}
+
+);
+
+
+
+
+
+
+const totalPages =
+Math.ceil(
+articles.length / ARTICLES_PER_PAGE
+);
+
+
+
+const start =
+(currentPage - 1) * ARTICLES_PER_PAGE;
+
+
+
+const currentArticles =
+articles.slice(
+start,
+start + ARTICLES_PER_PAGE
+);
+
+
+
+
+
+
+return (
+
+<main
+
+className="
+min-h-screen
+bg-neutral-950
+text-white
+"
+
+>
+
+
+
+<SectionHeader
+
+current="/articles"
+
+searchAction="/articles"
+
+searchPlaceholder="Поиск статей..."
+
+ />
+
+
+
+
+
+
+
+<section
+
+className="
+max-w-[1500px]
+mx-auto
+px-3
+md:px-6
+pt-2
+md:pt-12
+pb-6
+md:pb-12
+"
+
+>
+
+
+
+
+<h1
+
+className="
+text-3xl
+md:text-4xl
+font-bold
+"
+
+>
+
+Статьи
+
+</h1>
+
+
+
+
+
+
+<p
+
+className="
+mt-3
+md:mt-4
+text-base
+md:text-lg
+text-white/60
+"
+
+>
+
+Новости, экологические расследования,
+научные материалы и аналитика.
+
+</p>
+
+
+
+
+
+
+
+<div
+
+className="
+flex
+flex-wrap
+gap-2
+md:gap-3
+mt-5
+md:mt-8
+"
+
+>
+
+
+{
+
+categories.map((item)=>(
+
+
+<Link
+
+
+key={item.value}
+
+
+href={
+
+item.value
+
+?
+
+`/articles?category=${item.value}`
+
+:
+
+"/articles"
+
+}
+
+
+className={`
+
+px-3
+md:px-5
+py-1.5
+md:py-2
+text-xs
+md:text-base
+rounded-full
+border
+transition
+
+${
+
+category === item.value
+
+?
+
+"bg-white text-black"
+
+:
+
+"bg-white/10 text-white hover:bg-white/20"
+
+}
+
+`}
+
+
+>
+
+{item.title}
+
+
+</Link>
+
+
+))
+
+
+}
+
+
+
+</div>
+
+
+
+
+
+
+
+
+
+<div
+
+className="
+grid
+grid-cols-2
+lg:grid-cols-3
+xl:grid-cols-4
+gap-3
+md:gap-6
+mt-6
+md:mt-10
+"
+
+>
+
+
+
+
+{
+
+currentArticles.length > 0 ? (
+
+
+
+currentArticles.map((article:any)=>(
+
+
+
+<Link
+
+
+key={article.slug.current}
+
+
+href={`/articles/${article.slug.current}`}
+
+
+>
+
+
+
+
+<article
+
+className="
+rounded-xl
+md:rounded-2xl
+overflow-hidden
+bg-white/10
+border
+border-white/10
+hover:scale-[1.03]
+transition
+duration-300
+backdrop-blur-xl
+"
+
+>
+
+
+
+
+{
+article.cover && (
+
+
+<img
+
+
+src={
+
+urlFor(article.cover)
+.width(600)
+.height(350)
+.url()
+
+}
+
+
+alt={article.title}
+
+
+className="
+w-full
+h-24
+md:h-44
+object-cover
+"
+
+
+/>
+
+
+)
+
+}
+
+
+
+
+
+
+
+<div
+
+className="
+p-2
+md:p-4
+"
+
+>
+
+
+
+
+<div
+
+className="
+text-[9px]
+md:text-xs
+text-green-400
+uppercase
+"
+
+>
+
+
+{
+
+categories.find(
+
+(c)=>
+c.value===article.category
+
+)?.title
+
+
+}
+
+
+</div>
+
+
+
+
+
+
+
+<h2
+
+className="
+mt-1
+md:mt-2
+text-sm
+md:text-xl
+font-bold
+line-clamp-2
+"
+
+>
+
+
+{article.title}
+
+
+</h2>
+
+
+
+
+
+
+
+<p
+
+className="
+mt-1
+md:mt-2
+text-xs
+md:text-sm
+text-white/60
+line-clamp-2
+"
+
+>
+
+
+{article.description}
+
+
+</p>
+
+
+
+
+
+
+
+<div
+
+className="
+mt-2
+md:mt-4
+text-[10px]
+md:text-xs
+text-white/40
+"
+
+>
+
+
+{article.date}
+
+
+</div>
+
+
+
+
+
+
+
+</div>
+
+
+
+</article>
+
+
+
+
+</Link>
+
+
+
+))
+
+
+)
+
+:
+
+(
+
+
+<p
+
+className="
+text-white/50
+mt-10
+"
+
+>
+
+Ничего не найдено
+
+</p>
+
+
+)
+
+
+}
+
+
+
+
+</div>
+
+
+
+
+
+
+
+
+
+{
+
+totalPages > 1 && (
+
+
+
+<div
+
+className="
+flex
+justify-center
+gap-2
+mt-12
+flex-wrap
+"
+
+>
+
+
+{
+
+
+Array.from({
+
+length: totalPages
+
+}).map((_,index)=>{
+
+
+const page=index+1;
+
+
+
+return (
+
+
+
+<Link
+
+
+key={page}
+
+
+href={
+
+`/articles?${
+
+category
+?
+`category=${category}&`
+:
+""
+
+}
+
+${
+
+search
+?
+`search=${params.search}&`
+:
+""
+
+}
+
+page=${page}`
+
+
+}
+
+
+className={`
+
+px-4
+py-2
+rounded-full
+text-sm
+border
+transition
+
+
+${
+
+currentPage===page
+
+?
+
+"bg-white text-black border-white"
+
+:
+
+"bg-white/10 text-white border-white/20 hover:bg-white/20"
+
+}
+
+
+`}
+
+
+>
+
+
+{page}
+
+
+</Link>
+
+
+)
+
+
+})
+
+
+}
+
+
+
+
+</div>
+
+
+)
+
+}
+
+
+
+
+
+</section>
+
+
+
+
+
+<Footer />
+
+
+
+</main>
+
+)
+
+}
+
+============================================================
+FILE: app/contacts/page.tsx
+============================================================
+
+import {client} from "@/sanity/lib/client";
+import {urlFor} from "@/sanity/lib/image";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+import ContactButtons from "@/components/ContactButtons";
+
+export const dynamic = "force-dynamic";
+
+const query = `
+*[_type == "contact"][0]{
+  name,
+  photo,
+  description,
+  youtube,
+  instagram,
+  tiktok,
+  telegram,
+  email,
+  phone
+}
+`;
+
+export default async function ContactsPage(){
+
+  const contact = await client.fetch(query);
+
+  if(!contact){
+    return (
+      <main className="p-10 text-white">
+        Контакты не найдены
+      </main>
+    )
+  }
+
+  return (
+    <main
+      className="
+      min-h-screen
+      bg-neutral-950
+      text-white
+    "
+    >
+
+      <Header />
+
+      <section
+        className="
+        max-w-[1100px]
+        mx-auto
+
+        px-4
+        md:px-6
+
+        pt-2
+        pb-8
+
+        md:py-16
+      "
+      >
+
+        <div
+          className="
+          grid
+          md:grid-cols-2
+
+          gap-2
+          md:gap-12
+
+          items-center
+        "
+        >
+
+          {/* Фото */}
+
+          <div
+            className="
+            flex
+            justify-center
+            md:justify-start
+          "
+          >
+
+            {contact.photo && (
+
+              <img
+                src={
+                  urlFor(contact.photo)
+                    .width(700)
+                    .url()
+                }
+
+                alt={contact.name}
+
+                className="
+                rounded-3xl
+
+                w-[38%]
+                sm:w-[34%]
+
+                md:w-full
+              "
+              />
+
+            )}
+
+          </div>
+
+          {/* Правая колонка */}
+
+          <div>
+
+            <h1
+              className="
+              text-4xl
+              md:text-5xl
+
+              font-bold
+              leading-tight
+
+              text-center
+              md:text-left
+            "
+            >
+              {contact.name}
+            </h1>
+
+            <p
+              className="
+              mt-2
+              md:mt-6
+
+              text-sm
+              md:text-xl
+
+              text-white/70
+
+              text-center
+              md:text-left
+            "
+            >
+              {contact.description}
+            </p>
+
+            <ContactButtons
+              youtube={contact.youtube}
+              instagram={contact.instagram}
+              tiktok={contact.tiktok}
+              telegram={contact.telegram}
+              email={contact.email}
+              phone={contact.phone}
+            />
+
+          </div>
+
+        </div>
+
+      </section>
+
+      <Footer />
+
+    </main>
+  )
+}
+
+============================================================
+FILE: app/globals.css
+============================================================
+
+@import "tailwindcss";
+
+
+:root {
+
+  --background: transparent;
+
+  --foreground: white;
+
+}
+
+
+
+html {
+
+  background: transparent;
+
+}
+
+
+
+body {
+
+  margin:0;
+
+  padding:0;
+
+  min-height:100vh;
+
+  color:white;
+
+  background:
+
+  linear-gradient(
+    rgba(0,0,0,0.78),
+    rgba(0,0,0,0.88)
+  ),
+
+  url("/images/site-bg.jpg");
+
+  background-size:cover;
+
+  background-position:center;
+
+  background-attachment:fixed;
+
+}
+
+
+
+.bg-neutral-950 {
+
+  background-color: transparent !important;
+
+}
+
+============================================================
+FILE: app/layout.tsx
+============================================================
+
+import "./globals.css";
+
+import { Oswald } from "next/font/google";
+import PageBackground from "@/components/PageBackground";
+
+
+const oswald = Oswald({
+  subsets: ["cyrillic", "latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-oswald",
+});
+
+
+export const metadata = {
+
+metadataBase: new URL("https://ecovloger.ru"),
+
+title: {
+default: "EcoVlog — экологические новости России",
+template: "%s — EcoVlog"
+},
+
+description:
+"Экологические расследования, новости природы, научные материалы и карта экологических нарушений.",
+
+keywords: [
+"экология",
+"экологические новости",
+"экологические нарушения",
+"природа России",
+"экологические расследования",
+"Зелёный Фронт",
+"EcoVlog"
+],
+
+authors: [
+{
+name: "EcoVlog"
+}
+],
+
+openGraph: {
+
+title:
+"EcoVlog — экологические новости России",
+
+description:
+"Экологические расследования, новости природы и мониторинг экологических нарушений.",
+
+type:
+"website",
+
+locale:
+"ru_RU",
+
+url:
+"https://ecovloger.ru",
+
+siteName:
+"EcoVlog",
+
+images: [
+{
+url: "/images/ecovlog-logo.png",
+width: 800,
+height: 800,
+alt: "EcoVlog"
+}
+]
+
+},
+
+twitter: {
+
+card: "summary_large_image",
+
+title: "EcoVlog — экологические новости России",
+
+description:
+"Экологические расследования, новости природы и мониторинг экологических нарушений.",
+
+images: ["/images/ecovlog-logo.png"]
+
+},
+
+};
+
+
+
+export default function RootLayout({
+
+children,
+
+}:{
+
+children: React.ReactNode
+
+}){
+
+
+return (
+
+<html lang="ru">
+
+<body className={oswald.variable}>
+
+<PageBackground>
+
+{children}
+
+</PageBackground>
+
+
+</body>
+
+</html>
+
+)
+
+}
+
+============================================================
+FILE: app/map/page.tsx
+============================================================
+
+import SectionHeader from "@/components/SectionHeader";
+import Footer from "@/components/Footer";
+import Link from "next/link";
+
+export default function MapPage() {
+  return (
+    <main
+      className="
+        min-h-screen
+        bg-neutral-950
+        text-white
+      "
+    >
+      <SectionHeader
+        current="/map"
+      />
+
+      <section
+        className="
+          max-w-[1200px]
+          mx-auto
+          px-4
+          md:px-6
+          pt-2
+          md:pt-20
+          pb-10
+          md:pb-20
+          text-center
+        "
+      >
+        <h1
+          className="
+            text-3xl
+            md:text-5xl
+            font-bold
+          "
+        >
+          Народная карта экологических нарушений
+        </h1>
+
+        <p
+          className="
+            mt-4
+            md:mt-6
+            text-base
+            md:text-xl
+            text-white/60
+            max-w-3xl
+            mx-auto
+          "
+        >
+          Здесь вы отмечаете природоохранные нарушения,
+          а мы принимаем меры к их устранению.
+        </p>
+
+        <Link
+          href="https://greenfront.su/eco-map/"
+          target="_blank"
+          className="
+            block
+            mt-6
+            md:mt-12
+            mx-auto
+            max-w-[750px]
+            group
+          "
+        >
+          <div
+            className="
+              relative
+              rounded-3xl
+              overflow-hidden
+              bg-white/10
+              border
+              border-white/20
+              backdrop-blur-xl
+              shadow-[0_20px_60px_rgba(255,255,255,0.12)]
+              transition-all
+              duration-500
+              group-hover:scale-[1.03]
+            "
+          >
+            <img
+              src="/images/ecocard.png"
+              alt="Народная карта экологических нарушений"
+              className="
+                w-full
+                h-auto
+                object-contain
+                p-2
+                md:p-6
+              "
+            />
+
+            <div
+              className="
+                absolute
+                inset-0
+                bg-gradient-to-b
+                from-transparent
+                via-transparent
+                to-black/40
+              "
+            />
+
+            <div
+              className="
+                absolute
+                inset-0
+                flex
+                items-center
+                justify-center
+              "
+            >
+              <span
+                className="
+                  text-xl
+                  md:text-3xl
+                  font-bold
+                  bg-black/60
+                  border
+                  border-white/20
+                  backdrop-blur-xl
+                  px-5
+                  md:px-8
+                  py-3
+                  md:py-4
+                  rounded-full
+                  shadow-xl
+                  transition
+                  group-hover:bg-black/75
+                "
+              >
+                Открыть Экокарту
+              </span>
+            </div>
+          </div>
+        </Link>
+      </section>
+
+      <Footer />
+    </main>
+  );
+}
+
+============================================================
+FILE: app/news/page.tsx
+============================================================
+
+export default function News() {
+  return (
+    <main className="min-h-screen p-10">
+      <h1 className="text-5xl font-bold">
+        Новости
+      </h1>
+
+      <p className="mt-5 text-xl">
+        Экологические события и расследования.
+      </p>
+    </main>
+  );
+}
+
+============================================================
+FILE: app/page.tsx
+============================================================
+
+import Footer from "@/components/Footer";
+import SectionCards from "@/components/SectionCards";
+import HomeHeader from "@/components/HomeHeader";
+
+
+export default function Home(){
+
+
+return (
+
+<main className="
+min-h-screen
+bg-neutral-950
+text-white
+">
+
+
+<HomeHeader />
+
+
+<section className="
+pt-0
+md:pt-6
+">
+
+
+<SectionCards />
+
+
+</section>
+
+
+
+<Footer />
+
+
+</main>
+
+)
+
+}
+
+============================================================
+FILE: app/posts/[slug]/page.tsx
+============================================================
+
+import { client } from "@/sanity/lib/client";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+import ImageCarousel from "@/components/ImageCarousel";
+import BackButton from "@/components/BackButton";
+
+const query = `
+*[_type == "post" && slug.current == $slug][0]{
+  title,
+  images,
+  description,
+  date,
+  category
+}
+`;
+
+export default async function PostPage({
+  params,
+}: {
+  params: Promise<{
+    slug: string;
+  }>;
+}) {
+  const { slug } = await params;
+
+  const post = await client.fetch(query, {
+    slug,
+  });
+
+  if (!post) {
+    return (
+      <main className="min-h-screen bg-neutral-950 text-white p-10">
+        Публикация не найдена
+      </main>
+    );
+  }
+
+  return (
+    <main
+      className="
+        min-h-screen
+        bg-neutral-950
+        text-white
+      "
+    >
+      <Header />
+
+      <section
+        className="
+          max-w-[1000px]
+          mx-auto
+
+          px-4
+          md:px-6
+
+          pt-0
+          md:pt-1
+
+          pb-12
+        "
+      >
+        <BackButton />
+
+        <div
+          className="
+            mt-0
+            md:mt-1
+          "
+        >
+          <ImageCarousel
+            images={post.images}
+            title={post.title}
+          />
+        </div>
+
+        <p
+          className="
+            mt-8
+            md:mt-10
+
+            text-base
+            md:text-xl
+
+            text-white/70
+            leading-relaxed
+          "
+        >
+          {post.description}
+        </p>
+      </section>
+
+      <Footer />
+    </main>
+  );
+}
+
+============================================================
+FILE: app/posts/page.tsx
+============================================================
+
+import {client} from "@/sanity/lib/client";
+import {urlFor} from "@/sanity/lib/image";
+import SectionHeader from "@/components/SectionHeader";
+import Footer from "@/components/Footer";
+import Link from "next/link";
+import Image from "next/image";
+
+
+const POSTS_PER_PAGE = 20;
+
+
+
+const query = `
+
+*[_type == "post"]
+| order(date desc)
+[$start...$end]
+{
+
+title,
+slug,
+images,
+description,
+date,
+category
+
+}
+
+`;
+
+
+
+const countQuery = `
+
+count(*[_type == "post"])
+
+`;
+
+
+
+
+
+export default async function PostsPage({
+
+searchParams,
+
+}:{
+
+searchParams: Promise<{
+page?: string
+}>
+
+}){
+
+
+const params = await searchParams;
+
+
+
+const currentPage =
+Number(params.page || "1");
+
+
+
+const start =
+(currentPage - 1) * POSTS_PER_PAGE;
+
+
+const end =
+start + POSTS_PER_PAGE;
+
+
+
+const [posts,totalPosts] =
+await Promise.all([
+
+
+client.fetch(
+query,
+{
+start,
+end
+}
+),
+
+
+client.fetch(
+countQuery
+)
+
+]);
+
+
+
+const totalPages =
+Math.ceil(
+totalPosts / POSTS_PER_PAGE
+);
+
+
+
+
+return (
+
+<main
+
+className="
+min-h-screen
+bg-neutral-950
+text-white
+"
+
+>
+
+
+<SectionHeader
+
+current="/posts"
+
+searchAction="/posts/search"
+
+searchPlaceholder="Поиск публикаций..."
+
+ />
+
+
+
+
+
+<section
+
+className="
+max-w-[1400px]
+mx-auto
+px-3
+md:px-6
+pt-2
+md:pt-12
+pb-6
+md:pb-12
+"
+
+>
+
+
+<h1
+
+className="
+text-4xl
+font-bold
+"
+
+>
+
+Публикации
+
+</h1>
+
+
+
+<p
+
+className="
+mt-4
+text-lg
+text-white/60
+"
+
+>
+
+Короткие экологические материалы,
+факты и визуальные истории.
+
+</p>
+
+
+
+
+
+
+
+<div
+
+className="
+grid
+grid-cols-2
+lg:grid-cols-3
+xl:grid-cols-4
+gap-3
+md:gap-6
+mt-10
+"
+
+>
+
+
+{
+
+
+posts.map((post:any)=>(
+
+
+<Link
+
+key={post.slug.current}
+
+href={`/posts/${post.slug.current}`}
+
+>
+
+
+
+<article
+
+className="
+bg-white/10
+rounded-2xl
+overflow-hidden
+border
+border-white/10
+hover:scale-[1.03]
+transition
+duration-300
+backdrop-blur-xl
+"
+
+>
+
+
+
+
+
+{
+
+post.images?.[0] && (
+
+<div
+
+className="
+relative
+w-full
+aspect-[3/4]
+bg-black/20
+overflow-hidden
+rounded-t-2xl
+"
+
+>
+
+
+
+<Image
+
+
+src={
+
+urlFor(post.images[0])
+.width(900)
+.height(1200)
+.auto("format")
+.url()
+
+}
+
+
+alt={post.title}
+
+
+fill
+
+
+sizes="
+(max-width:768px) 50vw,
+(max-width:1200px) 33vw,
+25vw
+"
+
+
+className="
+object-contain
+"
+
+
+
+
+/>
+
+
+
+</div>
+
+
+)
+
+}
+
+
+
+
+
+
+
+<div
+
+className="
+p-3
+md:p-4
+"
+
+>
+
+
+
+<h2
+
+className="
+text-sm
+md:text-xl
+font-bold
+line-clamp-2
+leading-tight
+"
+
+>
+
+{post.title}
+
+</h2>
+
+
+
+
+
+<p
+
+className="
+mt-2
+text-xs
+md:text-sm
+text-white/60
+line-clamp-3
+"
+
+>
+
+{post.description}
+
+</p>
+
+
+
+</div>
+
+
+
+
+</article>
+
+
+
+</Link>
+
+
+))
+
+
+}
+
+
+
+</div>
+
+
+
+
+
+
+
+
+
+{
+
+totalPages > 1 && (
+
+
+<div
+
+className="
+flex
+justify-center
+gap-2
+mt-12
+flex-wrap
+"
+
+>
+
+
+{
+
+
+Array.from({
+
+length: totalPages
+
+}).map((_,index)=>{
+
+
+const page=index+1;
+
+
+
+return (
+
+<Link
+
+key={page}
+
+href={`/posts?page=${page}`}
+
+className="
+px-4
+py-2
+rounded-full
+text-sm
+border
+border-white/20
+bg-white/10
+hover:bg-white/20
+transition
+"
+
+>
+
+{page}
+
+</Link>
+
+
+)
+
+
+})
+
+
+}
+
+
+
+</div>
+
+
+)
+
+
+}
+
+
+
+</section>
+
+
+
+
+
+
+<Footer />
+
+
+
+</main>
+
+
+)
+
+}
+
+============================================================
+FILE: app/science/page.tsx
+============================================================
+
+export default function Science() {
+  return (
+    <main className="min-h-screen p-10">
+      <h1 className="text-5xl font-bold">
+        Научные публикации
+      </h1>
+
+      <p className="mt-5 text-xl">
+        Разборы животных, экологии и научных открытий.
+      </p>
+    </main>
+  );
+}
+
+============================================================
+FILE: app/studio/[[...tool]]/page.tsx
+============================================================
+
+/**
+ * This route is responsible for the built-in authoring environment using Sanity Studio.
+ * All routes under your studio path is handled by this file using Next.js' catch-all routes:
+ * https://nextjs.org/docs/routing/dynamic-routes#catch-all-routes
+ *
+ * You can learn more about the next-sanity package here:
+ * https://github.com/sanity-io/next-sanity
+ */
+
+import { NextStudio } from 'next-sanity/studio'
+import config from '../../../sanity.config'
+
+export const dynamic = 'force-static'
+
+export { metadata, viewport } from 'next-sanity/studio'
+
+export default function StudioPage() {
+  return <NextStudio config={config} />
+}
+
+
+============================================================
+FILE: app/videos/[slug]/page.tsx
+============================================================
+
+import { client } from "@/sanity/lib/client";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+
+
+const query = `
+*[_type == "video" && slug.current == $slug][0]{
+  title,
+  description,
+  youtubeUrl,
+  date
+}
+`;
+
+
+function getYoutubeId(url: string) {
+
+  if (!url) return null;
+
+
+  if (url.includes("shorts/")) {
+    return url.split("shorts/")[1].split("?")[0];
+  }
+
+
+  if (url.includes("watch?v=")) {
+    return url.split("watch?v=")[1].split("&")[0];
+  }
+
+
+  if (url.includes("youtu.be/")) {
+    return url.split("youtu.be/")[1].split("?")[0];
+  }
+
+
+  return null;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{slug: string}>
+}) {
+
+
+  const {slug} = await params;
+
+
+  const video = await client.fetch(query, {
+    slug,
+  });
+
+
+  if (!video) {
+
+    return {
+      title: "Видео не найдено"
+    }
+
+  }
+
+
+  const youtubeId = getYoutubeId(video.youtubeUrl);
+
+
+  const previewImage = youtubeId
+    ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`
+    : undefined;
+
+
+  return {
+
+    title: video.title,
+
+    description: video.description,
+
+    openGraph: {
+
+      title: video.title,
+
+      description: video.description,
+
+      images: previewImage ? [previewImage] : undefined,
+
+      type: "video.other"
+
+    },
+
+    twitter: {
+
+      card: "summary_large_image",
+
+      title: video.title,
+
+      description: video.description,
+
+      images: previewImage ? [previewImage] : undefined
+
+    }
+
+  }
+
+}
+
+export default async function VideoPage({
+  params,
+}: {
+  params: Promise<{slug: string}>
+}) {
+
+
+  const {slug} = await params;
+
+
+  const video = await client.fetch(query, {
+    slug,
+  });
+
+
+
+  if (!video) {
+
+    return (
+      <main className="min-h-screen bg-neutral-950 text-white p-10">
+
+        Видео не найдено
+
+      </main>
+    );
+
+  }
+
+
+
+  const youtubeId = getYoutubeId(video.youtubeUrl);
+
+
+
+  return (
+
+    <main className="min-h-screen bg-neutral-950 text-white">
+
+
+      <Header />
+
+
+      <section
+        className="
+        max-w-[1200px]
+        mx-auto
+        px-6
+        md:px-10
+        py-16
+        "
+      >
+
+
+        <div className="grid md:grid-cols-[400px_1fr] gap-12 items-start">
+
+
+          <div
+            className="
+            rounded-3xl
+            overflow-hidden
+            bg-black
+            aspect-[9/16]
+            "
+          >
+
+            <iframe
+
+              src={`https://www.youtube.com/embed/${youtubeId}`}
+
+              className="
+              w-full
+              h-full
+              "
+
+              allowFullScreen
+
+            />
+
+          </div>
+
+
+
+          <div>
+
+
+            <h1 className="text-5xl font-bold">
+
+              {video.title}
+
+            </h1>
+
+
+
+            <p
+              className="
+              mt-8
+              text-xl
+              text-white/70
+              "
+            >
+
+              {video.description}
+
+            </p>
+
+
+
+            <div
+              className="
+              mt-6
+              text-white/40
+              "
+            >
+
+              {video.date}
+
+            </div>
+
+
+          </div>
+
+
+        </div>
+
+
+      </section>
+
+
+      <Footer />
+
+
+    </main>
+
+  );
+
+}
+
+============================================================
+FILE: app/videos/page.tsx
+============================================================
+
+import {client} from "@/sanity/lib/client";
+import VideoCard from "@/components/VideoCard";
+import SectionHeader from "@/components/SectionHeader";
+import Footer from "@/components/Footer";
+
+
+const VIDEOS_PER_PAGE = 20;
+
+
+
+const query = `
+
+*[
+_type == "video" &&
+defined(slug.current) &&
+(
+!defined($search)
+||
+title match $search
+||
+description match $search
+)
+
+]
+| order(date desc)
+[$start...$end]
+{
+
+_id,
+title,
+description,
+youtubeUrl,
+date,
+slug
+
+}
+
+`;
+
+
+
+const countQuery = `
+
+count(*[
+_type == "video" &&
+defined(slug.current) &&
+(
+!defined($search)
+||
+title match $search
+||
+description match $search
+)
+
+])
+
+`;
+
+
+
+
+
+
+
+export default async function Videos({
+
+searchParams,
+
+}:{
+
+searchParams: Promise<{
+search?: string;
+page?: string;
+}>
+
+}) {
+
+
+
+const params = await searchParams;
+
+
+
+const search = params.search
+? `*${params.search}*`
+: null;
+
+
+
+const currentPage =
+Number(params.page || "1");
+
+
+
+const start =
+(currentPage - 1) * VIDEOS_PER_PAGE;
+
+
+
+const end =
+start + VIDEOS_PER_PAGE;
+
+
+
+
+
+
+
+const [videos,totalVideos] =
+
+await Promise.all([
+
+
+
+client.fetch(
+
+query,
+
+{
+
+search,
+
+start,
+
+end
+
+}
+
+),
+
+
+
+client.fetch(
+
+countQuery,
+
+{
+
+search
+
+}
+
+)
+
+
+]);
+
+
+
+
+
+
+
+
+const totalPages = Math.ceil(
+
+totalVideos / VIDEOS_PER_PAGE
+
+);
+
+
+
+
+
+
+
+return (
+
+<main
+
+className="
+min-h-screen
+bg-neutral-950
+text-white
+"
+
+>
+
+
+
+
+
+<SectionHeader
+
+current="/videos"
+
+searchAction="/videos"
+
+searchPlaceholder="Поиск видео..."
+
+ />
+
+
+
+
+
+
+
+
+
+<section
+
+className="
+max-w-[1400px]
+mx-auto
+px-3
+md:px-10
+pt-2
+md:pt-16
+pb-6
+md:pb-16
+"
+
+>
+
+
+
+
+
+<h1
+
+className="
+text-3xl
+md:text-5xl
+font-bold
+"
+
+>
+
+Видео
+
+</h1>
+
+
+
+
+
+
+
+
+
+<div
+
+className="
+grid
+grid-cols-2
+lg:grid-cols-4
+gap-3
+md:gap-8
+mt-6
+md:mt-12
+"
+
+>
+
+
+
+
+
+{
+
+videos.length > 0 ? (
+
+
+
+videos.map((video:any)=>(
+
+
+
+<VideoCard
+
+key={video._id}
+
+{...video}
+
+/>
+
+
+))
+
+
+)
+
+:
+
+(
+
+
+<p
+
+className="
+text-white/50
+mt-10
+"
+
+>
+
+Ничего не найдено
+
+</p>
+
+
+)
+
+
+}
+
+
+
+
+
+</div>
+
+
+
+
+
+
+
+
+
+{
+
+totalPages > 1 && (
+
+
+
+<div
+
+className="
+flex
+justify-center
+gap-2
+mt-12
+flex-wrap
+"
+
+>
+
+
+
+
+
+{
+
+Array.from({
+
+length: totalPages
+
+}).map((_,index)=>{
+
+
+const page = index + 1;
+
+
+
+return (
+
+
+
+<a
+
+key={page}
+
+href={
+
+search
+
+?
+
+`/videos?page=${page}&search=${params.search}`
+
+:
+
+`/videos?page=${page}`
+
+}
+
+className={`
+
+px-4
+py-2
+rounded-full
+text-sm
+border
+transition
+
+
+${
+
+currentPage === page
+
+?
+
+"bg-white text-black border-white"
+
+:
+
+"bg-white/10 text-white border-white/20 hover:bg-white/20"
+
+}
+
+`}
+
+>
+
+{page}
+
+</a>
+
+
+)
+
+
+})
+
+
+}
+
+
+
+
+
+</div>
+
+
+)
+
+
+}
+
+
+
+
+
+</section>
+
+
+
+
+
+
+
+<Footer />
+
+
+
+
+
+
+</main>
+
+)
+
+}
+
+============================================================
+FILE: components/BackButton.tsx
+============================================================
+
+"use client";
+
+import { useRouter } from "next/navigation";
+
+export default function BackButton() {
+  const router = useRouter();
+
+  return (
+    <button
+      onClick={() => router.back()}
+      className="
+        flex
+        items-center
+        gap-2
+
+        rounded-full
+
+        bg-white/10
+        backdrop-blur-2xl
+
+        border
+        border-white/20
+
+        px-5
+        py-2.5
+
+        text-white
+        font-medium
+
+        shadow-[0_8px_30px_rgba(255,255,255,0.08)]
+
+        hover:bg-white/20
+        hover:scale-105
+
+        transition
+        duration-300
+      "
+    >
+      <span className="text-lg">←</span>
+      <span>Назад</span>
+    </button>
+  );
+}
+
+============================================================
+FILE: components/ContactButtons.tsx
+============================================================
+
+"use client";
+
+
+import {useState} from "react";
+
+
+
+export default function ContactButtons({
+
+youtube,
+instagram,
+tiktok,
+telegram,
+email,
+phone
+
+}:{
+
+youtube?:string;
+instagram?:string;
+tiktok?:string;
+telegram?:string;
+email?:string;
+phone?:string;
+
+}){
+
+
+const [showEmail,setShowEmail] = useState(false);
+
+const [copied,setCopied] = useState(false);
+
+
+
+
+async function handleEmail(){
+
+
+if(!email) return;
+
+
+
+if(!showEmail){
+
+setShowEmail(true);
+
+return;
+
+}
+
+
+
+await navigator.clipboard.writeText(email);
+
+
+setCopied(true);
+
+
+setTimeout(()=>{
+
+setCopied(false);
+
+},2000);
+
+
+
+}
+
+
+
+
+
+const socials=[
+
+{
+name:"YouTube",
+link:youtube,
+icon:"/icons/youtube.svg"
+},
+
+{
+name:"Instagram",
+link:instagram,
+icon:"/icons/instagram.svg"
+},
+
+{
+name:"TikTok",
+link:tiktok,
+icon:"/icons/tiktok.svg"
+},
+
+{
+name:"Telegram",
+link:telegram,
+icon:"/icons/telegram.svg"
+},
+
+];
+
+
+
+
+
+return (
+
+<div
+className="
+mt-8
+space-y-4
+"
+>
+
+
+
+{
+
+socials.map((item)=>(
+
+
+item.link && (
+
+<a
+
+key={item.name}
+
+href={item.link}
+
+target="_blank"
+
+rel="noopener noreferrer"
+
+className="
+flex
+items-center
+gap-4
+rounded-2xl
+bg-white/10
+border
+border-white/20
+px-6
+py-4
+backdrop-blur-xl
+hover:bg-white/20
+transition
+"
+
+>
+
+
+<img
+
+src={item.icon}
+
+alt={item.name}
+
+className="
+w-6
+h-6
+object-contain
+"
+
+/>
+
+
+
+<span>
+
+{item.name}
+
+</span>
+
+
+</a>
+
+)
+
+
+))
+
+
+}
+
+
+
+
+{
+
+
+email && (
+
+
+<button
+
+onClick={handleEmail}
+
+className="
+flex
+items-center
+gap-4
+w-full
+rounded-2xl
+bg-white/10
+border
+border-white/20
+px-6
+py-4
+backdrop-blur-xl
+hover:bg-white/20
+transition
+text-left
+"
+
+>
+
+
+<img
+
+src="/icons/email.svg"
+
+alt="Email"
+
+className="
+w-6
+h-6
+object-contain
+"
+
+/>
+
+
+
+<span>
+
+{
+
+copied
+
+?
+
+"Скопировано"
+
+:
+
+showEmail
+
+?
+
+email
+
+:
+
+"Email"
+
+}
+
+</span>
+
+
+
+</button>
+
+
+)
+
+}
+
+
+
+
+
+{
+
+
+phone && (
+
+
+<div
+
+className="
+flex
+items-center
+gap-4
+rounded-2xl
+bg-white/10
+border
+border-white/20
+px-6
+py-4
+backdrop-blur-xl
+"
+
+>
+
+
+<span>
+
+☎
+
+</span>
+
+
+
+<span>
+
+{phone}
+
+</span>
+
+
+</div>
+
+
+)
+
+}
+
+
+
+</div>
+
+)
+
+}
+
+============================================================
+FILE: components/Footer.tsx
+============================================================
+
+export default function Footer() {
+
+return (
+
+<footer className="
+
+hidden
+md:block
+
+py-10
+mt-20
+border-t
+border-white/10
+
+">
+
+
+<div className="
+
+max-w-[1400px]
+mx-auto
+px-6
+md:px-10
+text-white/50
+text-sm
+
+">
+
+
+© {new Date().getFullYear()} EcoVlog
+
+
+</div>
+
+
+</footer>
+
+
+);
+
+}
+
+============================================================
+FILE: components/Header.tsx
+============================================================
+
+import Link from "next/link";
+
+export default function Header() {
+  return (
+    <header
+      className="
+        w-full
+        flex
+        items-center
+        justify-between
+
+        px-3
+        py-3
+
+        md:px-6
+        md:py-5
+
+        gap-3
+      "
+    >
+      <Link
+        href="/"
+        className="
+          group
+          hover:scale-105
+          transition
+          duration-300
+          shrink-0
+        "
+      >
+        <div
+          className="
+            relative
+            overflow-hidden
+            rounded-3xl
+            p-2
+            bg-white/10
+            border
+            border-white/20
+            backdrop-blur-2xl
+            shadow-[0_8px_40px_rgba(255,255,255,0.15)]
+          "
+        >
+          <div
+            className="
+              absolute
+              inset-0
+              bg-gradient-to-br
+              from-white/30
+              via-transparent
+              to-transparent
+              pointer-events-none
+            "
+          />
+
+          <img
+            src="/images/ecovlog-logo.png"
+            alt="EcoVlog"
+            className="
+              relative
+              h-12
+              md:h-16
+              w-auto
+              object-contain
+            "
+          />
+        </div>
+      </Link>
+
+      <nav
+        className="
+          flex
+          items-center
+          shrink-0
+        "
+      >
+        <Link
+          href="/contacts"
+          className="
+            relative
+            overflow-hidden
+
+            bg-white/10
+            text-white
+
+            px-4
+            md:px-6
+
+            py-2
+
+            rounded-full
+
+            font-semibold
+
+            text-sm
+            md:text-base
+
+            border
+            border-white/25
+
+            backdrop-blur-xl
+
+            shadow-[0_8px_30px_rgba(255,255,255,0.12)]
+
+            hover:bg-white/20
+            hover:scale-105
+
+            transition
+            duration-300
+          "
+        >
+          <span className="relative z-10">
+            Контакты
+          </span>
+
+          <div
+            className="
+              absolute
+              inset-0
+              bg-gradient-to-br
+              from-white/30
+              via-transparent
+              to-transparent
+            "
+          />
+        </Link>
+      </nav>
+    </header>
+  );
+}
+
+============================================================
+FILE: components/HomeHeader.tsx
+============================================================
+
+import Link from "next/link";
+
+export default function HomeHeader() {
+  return (
+    <header
+      className="
+        w-full
+        flex
+        items-center
+        justify-between
+        px-3
+        py-3
+        md:px-6
+        md:py-5
+        gap-3
+      "
+    >
+      <Link
+        href="/"
+        className="
+          group
+          hover:scale-105
+          transition
+          duration-300
+          shrink-0
+        "
+      >
+        <div
+          className="
+            relative
+            overflow-hidden
+            rounded-3xl
+            p-2
+            bg-white/10
+            border
+            border-white/20
+            backdrop-blur-2xl
+            shadow-[0_8px_40px_rgba(255,255,255,0.15)]
+          "
+        >
+          <div
+            className="
+              absolute
+              inset-0
+              bg-gradient-to-br
+              from-white/30
+              via-transparent
+              to-transparent
+              pointer-events-none
+            "
+          />
+
+          <img
+            src="/images/ecovlog-logo.png"
+            alt="EcoVlog"
+            className="
+              relative
+              h-12
+              md:h-16
+              w-auto
+              object-contain
+            "
+          />
+        </div>
+      </Link>
+
+      <Link
+        href="/contacts"
+        className="
+          relative
+          overflow-hidden
+          shrink-0
+
+          bg-white/10
+          text-white
+
+          px-4
+          md:px-6
+
+          py-2
+          md:py-3
+
+          rounded-full
+          font-semibold
+
+          text-sm
+          md:text-base
+
+          border
+          border-white/25
+
+          backdrop-blur-xl
+
+          shadow-[0_8px_30px_rgba(255,255,255,0.12)]
+
+          hover:bg-white/20
+          hover:scale-105
+          transition
+          duration-300
+        "
+      >
+        <span className="relative z-10">
+          Контакты
+        </span>
+
+        <div
+          className="
+            absolute
+            inset-0
+            bg-gradient-to-br
+            from-white/30
+            via-transparent
+            to-transparent
+          "
+        />
+      </Link>
+    </header>
+  );
+}
+
+============================================================
+FILE: components/ImageCarousel.tsx
+============================================================
+
+"use client";
+
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { urlFor } from "@/sanity/lib/image";
+
+
+export default function ImageCarousel({
+
+images,
+title
+
+}:{
+
+images:any[];
+title:string;
+
+}){
+
+
+const [active,setActive] = useState(0);
+
+
+
+if(!images || images.length === 0){
+
+return null;
+
+}
+
+
+
+const next = ()=>{
+
+setActive(
+(active + 1) % images.length
+);
+
+};
+
+
+
+const previous = ()=>{
+
+setActive(
+(active - 1 + images.length) % images.length
+);
+
+};
+
+
+
+
+const getPosition = (index:number)=>{
+
+
+const length = images.length;
+
+
+let position =
+(index - active + length) % length;
+
+
+
+if(position > length / 2){
+
+position -= length;
+
+}
+
+
+
+return position;
+
+};
+
+
+
+
+
+return (
+
+
+<div
+
+className="
+relative
+w-full
+h-[560px]
+md:h-[650px]
+flex
+items-center
+justify-center
+"
+
+>
+
+
+
+<div
+
+className="
+relative
+w-[300px]
+h-[470px]
+md:w-[400px]
+md:h-[580px]
+"
+
+>
+
+
+<AnimatePresence>
+
+
+
+{
+
+
+images.map((image,index)=>{
+
+
+const position =
+getPosition(index);
+
+
+
+if(Math.abs(position)>3){
+
+return null;
+
+}
+
+
+
+const isActive =
+position === 0;
+
+
+
+return (
+
+
+
+<motion.div
+
+key={index}
+
+
+onClick={()=>{
+
+if(isActive){
+
+next();
+
+}else{
+
+setActive(index);
+
+}
+
+}}
+
+
+
+drag={isActive ? "x" : false}
+
+
+
+dragConstraints={{
+left:0,
+right:0
+}}
+
+
+
+onDragEnd={(e,info)=>{
+
+
+if(info.offset.x < -80){
+
+next();
+
+}
+
+
+if(info.offset.x > 80){
+
+previous();
+
+}
+
+
+}}
+
+
+
+animate={{
+
+x:
+position === 0
+?
+0
+:
+position > 0
+?
+position * 100
+:
+position * 100,
+
+
+scale:
+position === 0
+?
+1
+:
+0.88 - Math.abs(position)*0.05,
+
+
+rotate:
+position === 0
+?
+0
+:
+position > 0
+?
+8
+:
+-8,
+
+
+opacity:
+position === 0
+?
+1
+:
+Math.max(
+0.3,
+1 - Math.abs(position)*0.25
+),
+
+
+zIndex:
+100-Math.abs(position)
+
+}}
+
+
+
+transition={{
+
+type:"spring",
+
+stiffness:170,
+
+damping:24
+
+}}
+
+
+
+className="
+absolute
+inset-0
+flex
+items-center
+justify-center
+"
+
+>
+
+
+
+<div
+
+className="
+relative
+w-full
+h-full
+rounded-[32px]
+border
+border-white/20
+bg-white/10
+backdrop-blur-2xl
+shadow-[0_30px_80px_rgba(0,0,0,0.5)]
+flex
+items-center
+justify-center
+p-4
+"
+
+>
+
+
+<img
+
+
+src={
+
+urlFor(image)
+.width(1200)
+.fit("max")
+.url()
+
+}
+
+
+alt={title}
+
+
+
+className="
+max-w-full
+max-h-full
+object-contain
+rounded-2xl
+"
+
+ />
+
+
+
+<div
+
+className="
+absolute
+inset-0
+rounded-[32px]
+bg-gradient-to-br
+from-white/20
+via-transparent
+to-transparent
+pointer-events-none
+"
+
+/>
+
+
+
+</div>
+
+
+
+</motion.div>
+
+
+)
+
+
+})
+
+
+}
+
+
+
+</AnimatePresence>
+
+
+</div>
+
+
+
+
+
+
+
+
+<button
+
+onClick={previous}
+
+className="
+absolute
+left-3
+md:left-5
+top-1/2
+-translate-y-1/2
+w-12
+h-12
+rounded-full
+bg-white/10
+border
+border-white/20
+backdrop-blur-xl
+text-2xl
+hover:bg-white/20
+transition
+"
+
+>
+
+‹
+
+</button>
+
+
+
+
+
+<button
+
+onClick={next}
+
+className="
+absolute
+right-3
+md:right-5
+top-1/2
+-translate-y-1/2
+w-12
+h-12
+rounded-full
+bg-white/10
+border
+border-white/20
+backdrop-blur-xl
+text-2xl
+hover:bg-white/20
+transition
+"
+
+>
+
+›
+
+</button>
+
+
+
+</div>
+
+
+)
+
+}
+
+============================================================
+FILE: components/PageBackground.tsx
+============================================================
+
+"use client";
+
+
+export default function PageBackground({
+
+children
+
+}:{
+
+children: React.ReactNode
+
+}){
+
+
+return (
+
+<div className="
+relative
+min-h-screen
+overflow-hidden
+">
+
+
+<div
+
+className="
+fixed
+inset-0
+bg-cover
+bg-center
+bg-no-repeat
+"
+
+style={{
+
+backgroundImage:
+
+`
+linear-gradient(
+rgba(5,5,5,0.82),
+rgba(5,5,5,0.92)
+),
+url('/images/site-bg.jpg')
+`
+
+}}
+
+/>
+
+
+<div className="
+relative
+z-10
+">
+
+{children}
+
+</div>
+
+
+</div>
+
+)
+
+}
+
+============================================================
+FILE: components/Pagination.tsx
+============================================================
+
+import Link from "next/link";
+
+type Props = {
+  currentPage: number;
+  totalPages: number;
+  basePath: string;
+  extraParams?: Record<string, string | undefined>;
+};
+
+export default function Pagination({
+  currentPage,
+  totalPages,
+  basePath,
+  extraParams = {},
+}: Props) {
+  if (totalPages <= 1) return null;
+
+  const createHref = (page: number) => {
+    const params = new URLSearchParams();
+
+    Object.entries(extraParams).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+    });
+
+    if (page > 1) params.set("page", String(page));
+
+    const query = params.toString();
+
+    return query ? `${basePath}?${query}` : basePath;
+  };
+
+  const pages: (number | "...")[] = [];
+
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) pages.push(i);
+  } else {
+    pages.push(1);
+
+    if (currentPage > 3) pages.push("...");
+
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+
+    for (let i = start; i <= end; i++) pages.push(i);
+
+    if (currentPage < totalPages - 2) pages.push("...");
+
+    pages.push(totalPages);
+  }
+
+  return (
+    <div className="flex justify-center items-center gap-2 mt-12 flex-wrap">
+
+      {currentPage > 1 && (
+        <Link
+          href={createHref(currentPage - 1)}
+          className="
+          px-4
+          py-2
+          rounded-full
+          bg-white/10
+          border
+          border-white/20
+          backdrop-blur-xl
+          hover:bg-white/20
+          transition
+          "
+        >
+          ←
+        </Link>
+      )}
+
+      {pages.map((item, index) => {
+
+        if (item === "...") {
+          return (
+            <div
+              key={index}
+              className="px-3 text-white/50"
+            >
+              ...
+            </div>
+          );
+        }
+
+        return (
+          <Link
+            key={item}
+            href={createHref(item)}
+            className={`
+            px-4
+            py-2
+            rounded-full
+            backdrop-blur-xl
+            border
+            transition
+            ${
+              item === currentPage
+                ? "bg-white text-black border-white"
+                : "bg-white/10 border-white/20 text-white hover:bg-white/20"
+            }
+            `}
+          >
+            {item}
+          </Link>
+        );
+      })}
+
+      {currentPage < totalPages && (
+        <Link
+          href={createHref(currentPage + 1)}
+          className="
+          px-4
+          py-2
+          rounded-full
+          bg-white/10
+          border
+          border-white/20
+          backdrop-blur-xl
+          hover:bg-white/20
+          transition
+          "
+        >
+          →
+        </Link>
+      )}
+
+    </div>
+  );
+}
+
+============================================================
+FILE: components/SectionCards.tsx
+============================================================
+
+"use client";
+
+import Link from "next/link";
+import Image from "next/image";
+import { useState } from "react";
+
+const sections = [
+  {
+    title: "Видео",
+    image: "/images/video.webp",
+    link: "/videos",
+  },
+  {
+    title: "Статьи",
+    image: "/images/articles.webp",
+    link: "/articles",
+  },
+  {
+    title: "Публикации",
+    image: "/images/posts.webp",
+    link: "/posts",
+  },
+  {
+    title: "Экокарта",
+    image: "/images/map.webp",
+    link: "/map",
+  },
+];
+
+export default function SectionCards() {
+  const [active, setActive] = useState<number | null>(null);
+
+  return (
+    <section
+      className="
+      max-w-[1500px]
+      mx-auto
+      px-4
+      md:px-6
+      py-10
+      md:py-16
+    "
+    >
+      {/* ДЕСКТОП */}
+
+      <div
+        className="
+        hidden
+        md:flex
+        w-full
+        gap-5
+        h-[520px]
+      "
+      >
+        {sections.map((item, index) => (
+          <Link
+            key={item.title}
+            href={item.link}
+            onMouseEnter={() => setActive(index)}
+            onMouseLeave={() => setActive(null)}
+            className={`
+              transition-all
+              duration-700
+              ease-[cubic-bezier(0.34,1.56,0.64,1)]
+
+              ${
+                active === index
+                  ? "flex-[1.4]"
+                  : active !== null
+                  ? "flex-[0.8]"
+                  : "flex-1"
+              }
+            `}
+          >
+            <div
+              className="
+              relative
+              h-[520px]
+              rounded-[2rem]
+              overflow-hidden
+              cursor-pointer
+              border
+              border-white/10
+              shadow-2xl
+            "
+            >
+              <Image
+                src={item.image}
+                alt={item.title}
+                fill
+                priority
+                quality={80}
+                sizes="(min-width:1536px) 25vw,
+                       (min-width:1024px) 33vw,
+                       (min-width:768px) 40vw,
+                       50vw"
+                className={`
+                  object-cover
+                  transition-transform
+                  duration-700
+
+                  ${
+                    active === index
+                      ? "scale-110"
+                      : "scale-100"
+                  }
+                `}
+              />
+
+              <div
+                className="
+                absolute
+                inset-0
+                bg-gradient-to-b
+                from-black/10
+                to-black/70
+              "
+              />
+
+              <div
+                className="
+                absolute
+                bottom-8
+                left-1/2
+                -translate-x-1/2
+              "
+              >
+                <div
+                  className="
+                  backdrop-blur-xl
+                  bg-white/10
+                  border
+                  border-white/20
+                  rounded-full
+                  px-10
+                  py-4
+                  shadow-xl
+                "
+                >
+                  <h2
+                    className="
+                    text-3xl
+                    font-bold
+                  "
+                  >
+                    {item.title}
+                  </h2>
+                </div>
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      {/* МОБИЛЬНАЯ ВЕРСИЯ */}
+
+      <div
+        className="
+        md:hidden
+        grid
+        grid-cols-2
+        gap-3
+      "
+      >
+        {sections.map((item) => (
+          <Link
+            key={item.title}
+            href={item.link}
+            className="
+              relative
+              h-[220px]
+              rounded-[1.5rem]
+              overflow-hidden
+              border
+              border-white/20
+              shadow-xl
+            "
+          >
+            <Image
+              src={item.image}
+              alt={item.title}
+              fill
+              priority
+              quality={70}
+              sizes="50vw"
+              className="
+                object-cover
+              "
+            />
+
+            <div
+              className="
+              absolute
+              inset-0
+              bg-black/40
+            "
+            />
+
+            <div
+              className="
+              absolute
+              inset-0
+              flex
+              items-center
+              justify-center
+            "
+            >
+              <div
+                className="
+                backdrop-blur-2xl
+                bg-white/15
+                border
+                border-white/25
+                rounded-2xl
+                px-4
+                py-3
+                shadow-[0_8px_32px_rgba(0,0,0,0.35)]
+              "
+              >
+                <h2
+                  className="
+                  text-base
+                  font-bold
+                  text-white
+                  leading-[1.05]
+                  text-center
+                "
+                >
+                  {item.title}
+                </h2>
+              </div>
+            </div>          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+============================================================
+FILE: components/SectionHeader.tsx
+============================================================
+
+import Link from "next/link";
+import SectionNavigation from "@/components/SectionNavigation";
+
+
+export default function SectionHeader({
+
+searchAction = "/",
+searchPlaceholder = "Поиск...",
+current
+
+}: {
+
+searchAction?: string;
+searchPlaceholder?: string;
+current?: string;
+
+}){
+
+
+return (
+
+<header
+className="
+w-full
+px-3
+md:px-6
+py-4
+md:py-5
+flex
+items-center
+justify-between
+gap-3
+overflow-x-hidden
+"
+>
+
+
+<Link
+
+href="/"
+
+className="
+group
+hover:scale-105
+transition
+duration-300
+shrink-0
+"
+
+>
+
+
+<div
+className="
+relative
+overflow-hidden
+rounded-3xl
+p-2
+bg-white/10
+border
+border-white/20
+backdrop-blur-2xl
+shadow-[0_8px_40px_rgba(255,255,255,0.15)]
+"
+>
+
+
+<div
+className="
+absolute
+inset-0
+bg-gradient-to-br
+from-white/30
+via-transparent
+to-transparent
+pointer-events-none
+"
+/>
+
+
+
+<img
+
+src="/images/ecovlog-logo.png"
+
+alt="EcoVlog"
+
+className="
+relative
+h-12
+md:h-16
+w-auto
+object-contain
+"
+
+/>
+
+
+</div>
+
+
+</Link>
+
+
+
+
+
+<div
+className="
+flex
+flex-col
+items-end
+gap-3
+ml-auto
+min-w-0
+w-full
+md:w-auto
+"
+>
+
+
+
+
+
+<div
+className="
+flex
+items-center
+justify-end
+gap-2
+w-full
+"
+>
+
+
+
+
+
+<form
+
+action={searchAction}
+
+className="
+relative
+w-full
+md:w-auto
+"
+
+>
+
+
+<input
+
+name="search"
+
+placeholder={searchPlaceholder}
+
+className="
+w-full
+md:w-[240px]
+rounded-full
+bg-white/10
+border
+border-white/20
+backdrop-blur-xl
+px-4
+py-2
+text-xs
+md:text-sm
+text-white
+placeholder:text-white/50
+outline-none
+focus:bg-white/20
+transition
+"
+
+/>
+
+
+</form>
+
+
+
+
+
+
+<nav
+
+className="
+hidden
+md:flex
+items-center
+gap-5
+text-white/80
+text-sm
+"
+
+>
+
+
+<Link
+
+href="/videos"
+
+className="
+hover:text-white
+transition
+"
+
+>
+Видео
+</Link>
+
+
+<Link
+
+href="/articles"
+
+className="
+hover:text-white
+transition
+"
+
+>
+Статьи
+</Link>
+
+
+<Link
+
+href="/posts"
+
+className="
+hover:text-white
+transition
+"
+
+>
+Публикации
+</Link>
+
+
+<Link
+
+href="/map"
+
+className="
+hover:text-white
+transition
+"
+
+>
+Экокарта
+</Link>
+
+
+
+
+<Link
+
+href="/contacts"
+
+className="
+relative
+overflow-hidden
+bg-white/10
+text-white
+px-5
+py-2
+rounded-full
+font-semibold
+border
+border-white/25
+backdrop-blur-xl
+shadow-[0_8px_30px_rgba(255,255,255,0.12)]
+hover:bg-white/20
+hover:scale-105
+transition
+duration-300
+"
+
+>
+
+<span
+className="
+relative
+z-10
+"
+>
+Контакты
+</span>
+
+
+<div
+className="
+absolute
+inset-0
+bg-gradient-to-br
+from-white/30
+via-transparent
+to-transparent
+pointer-events-none
+"
+/>
+
+
+</Link>
+
+
+</nav>
+
+
+
+</div>
+
+
+
+
+
+<SectionNavigation
+
+current={current}
+
+/>
+
+
+
+
+
+</div>
+
+
+
+
+
+</header>
+
+)
+
+}
+
+============================================================
+FILE: components/SectionNavigation.tsx
+============================================================
+
+import Link from "next/link";
+
+const sections = [
+  {
+    title: "Видео",
+    link: "/videos",
+  },
+  {
+    title: "Статьи",
+    link: "/articles",
+  },
+  {
+    title: "Публикации",
+    link: "/posts",
+  },
+  {
+    title: "Экокарта",
+    link: "/map",
+  },
+];
+
+export default function SectionNavigation({
+  current,
+}: {
+  current?: string;
+}) {
+  return (
+    <div
+      className="
+        md:hidden
+        w-full
+        mt-2
+      "
+    >
+      <div
+        className="
+          grid
+          grid-cols-2
+          gap-2
+        "
+      >
+        {sections.map((item) => (
+          <Link
+            key={item.link}
+            href={item.link}
+            className={`
+              h-9
+              flex
+              items-center
+              justify-center
+              rounded-full
+              text-[11px]
+              font-medium
+              border
+              backdrop-blur-xl
+              transition
+              duration-300
+
+              ${
+                current === item.link
+                  ? "bg-white text-black border-white"
+                  : "bg-white/10 text-white border-white/20 hover:bg-white/20"
+              }
+            `}
+          >
+            {item.title}
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+============================================================
+FILE: components/VideoCard.tsx
+============================================================
+
+import Link from "next/link";
+
+type VideoProps = {
+  title: string;
+  description: string;
+  date: string;
+  slug: {
+    current: string;
+  };
+  youtubeUrl: string;
+};
+
+
+export default function VideoCard({
+  title,
+  description,
+  date,
+  slug,
+  youtubeUrl,
+}: VideoProps) {
+
+
+  function getYoutubeId(url: string) {
+
+    if (!url) return null;
+
+
+    if (url.includes("shorts/")) {
+      return url.split("shorts/")[1].split("?")[0];
+    }
+
+
+    if (url.includes("watch?v=")) {
+      return url.split("watch?v=")[1].split("&")[0];
+    }
+
+
+    if (url.includes("youtu.be/")) {
+      return url.split("youtu.be/")[1].split("?")[0];
+    }
+
+
+    return null;
+  }
+
+
+  const youtubeId = getYoutubeId(youtubeUrl);
+
+
+  const preview = youtubeId
+    ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`
+    : "/images/video.jpg";
+
+
+  return (
+
+    <Link href={`/videos/${slug.current}`}>
+
+      <article
+        className="
+        bg-white/10
+        rounded-3xl
+        overflow-hidden
+        hover:scale-[1.03]
+        transition
+        duration-300
+        cursor-pointer
+        "
+      >
+
+
+        <div className="aspect-[9/16] bg-black">
+
+          <img
+            src={preview}
+            alt={title}
+            className="
+            w-full
+            h-full
+            object-cover
+            "
+          />
+
+        </div>
+
+
+        <div className="p-6">
+
+
+          <div className="text-sm text-white/50">
+            {date}
+          </div>
+
+
+          <h2 className="text-2xl font-bold mt-2">
+            {title}
+          </h2>
+
+
+          <p className="mt-3 text-white/70">
+            {description}
+          </p>
+
+
+        </div>
+
+
+      </article>
+
+    </Link>
+
+  );
+}
+
+============================================================
+FILE: sanity/env.ts
+============================================================
+
+export const apiVersion =
+  process.env.NEXT_PUBLIC_SANITY_API_VERSION || '2026-07-16'
+
+export const dataset = assertValue(
+  process.env.NEXT_PUBLIC_SANITY_DATASET,
+  'Missing environment variable: NEXT_PUBLIC_SANITY_DATASET'
+)
+
+export const projectId = assertValue(
+  process.env.NEXT_PUBLIC_SANITY_PROJECT_ID,
+  'Missing environment variable: NEXT_PUBLIC_SANITY_PROJECT_ID'
+)
+
+function assertValue<T>(v: T | undefined, errorMessage: string): T {
+  if (v === undefined) {
+    throw new Error(errorMessage)
+  }
+
+  return v
+}
+
+
+============================================================
+FILE: sanity/lib/client.ts
+============================================================
+
+import { createClient } from "next-sanity";
+
+export const client = createClient({
+  projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID!,
+  dataset: process.env.NEXT_PUBLIC_SANITY_DATASET!,
+  apiVersion: "2026-07-16",
+  useCdn: false,
+});
+
+export const POSTS_PER_PAGE = 20;
+
+============================================================
+FILE: sanity/lib/image.ts
+============================================================
+
+import imageUrlBuilder from '@sanity/image-url'
+import {client} from './client'
+
+
+const builder = imageUrlBuilder(client)
+
+
+export function urlFor(source:any) {
+  return builder.image(source)
+}
+
+============================================================
+FILE: sanity/lib/live.ts
+============================================================
+
+// Querying with "sanityFetch" will keep content automatically updated
+// Before using it, import and render "<SanityLive />" in your layout, see
+// https://github.com/sanity-io/next-sanity#live-content-api for more information.
+import { defineLive } from "next-sanity/live";
+import { client } from './client'
+
+export const { sanityFetch, SanityLive } = defineLive({
+  client,
+});
+
+
+============================================================
+FILE: sanity/schemaTypes/articleType.ts
+============================================================
+
+import {defineField, defineType} from 'sanity'
+
+
+export const articleType = defineType({
+
+  name: 'article',
+
+  title: 'Статьи',
+
+  type: 'document',
+
+
+  fields: [
+
+
+    defineField({
+
+      name: 'title',
+
+      title: 'Заголовок',
+
+      type: 'string',
+
+      validation: Rule => Rule.required()
+
+    }),
+
+
+
+    defineField({
+
+      name: 'slug',
+
+      title: 'URL адрес',
+
+      type: 'slug',
+
+      options: {
+
+        source: 'title',
+
+        maxLength: 96,
+
+      },
+
+      validation: Rule => Rule.required()
+
+    }),
+
+
+
+    defineField({
+
+      name: 'category',
+
+      title: 'Категория',
+
+      type: 'string',
+
+      options: {
+
+        list: [
+
+          {
+            title: 'Новости',
+            value: 'news'
+          },
+
+          {
+            title: 'Расследования',
+            value: 'investigation'
+          },
+
+          {
+            title: 'Научные материалы',
+            value: 'science'
+          },
+
+          {
+            title: 'Аналитика',
+            value: 'analytics'
+          }
+
+        ]
+
+      }
+
+    }),
+
+
+
+    defineField({
+
+      name: 'cover',
+
+      title: 'Главное изображение',
+
+      type: 'image',
+
+      options: {
+
+        hotspot: true,
+
+      }
+
+    }),
+
+
+
+    defineField({
+
+      name: 'description',
+
+      title: 'Краткое описание',
+
+      type: 'text',
+
+      rows: 4,
+
+    }),
+
+
+
+    defineField({
+
+      name: 'content',
+
+      title: 'Полный текст',
+
+      type: 'array',
+
+      of: [
+
+        {
+
+          type: 'block'
+
+        },
+
+        {
+
+          type: 'image',
+
+          options: {
+
+            hotspot: true
+
+          }
+
+        }
+
+      ]
+
+    }),
+
+
+
+    defineField({
+
+      name: 'date',
+
+      title: 'Дата публикации',
+
+      type: 'date'
+
+    })
+
+
+  ]
+
+})
+
+============================================================
+FILE: sanity/schemaTypes/authorType.ts
+============================================================
+
+
+import {defineArrayMember, defineField, defineType} from 'sanity'
+
+export const authorType = defineType({
+  name: 'author',
+  title: 'Author',
+  type: 'document',
+  fields: [
+    defineField({
+      name: 'name',
+      type: 'string',
+    }),
+    defineField({
+      name: 'slug',
+      type: 'slug',
+      options: {
+        source: 'name',
+      },
+    }),
+    defineField({
+      name: 'image',
+      type: 'image',
+      options: {
+        hotspot: true,
+      },
+    }),
+    defineField({
+      name: 'bio',
+      type: 'array',
+      of: [
+        defineArrayMember({
+          type: 'block',
+          styles: [{title: 'Normal', value: 'normal'}],
+          lists: [],
+        }),
+      ],
+    }),
+  ],
+  preview: {
+    select: {
+      title: 'name',
+      media: 'image',
+    },
+  },
+})
+
+
+============================================================
+FILE: sanity/schemaTypes/blockContentType.ts
+============================================================
+
+import {defineType, defineArrayMember} from 'sanity'
+
+
+/**
+ * This is the schema type for block content used in the post document type
+ * Importing this type into the studio configuration's `schema` property
+ * lets you reuse it in other document types with:
+ *  {
+ *    name: 'someName',
+ *    title: 'Some title',
+ *    type: 'blockContent'
+ *  }
+ */
+
+export const blockContentType = defineType({
+  title: 'Block Content',
+  name: 'blockContent',
+  type: 'array',
+  of: [
+    defineArrayMember({
+      type: 'block',
+      // Styles let you define what blocks can be marked up as. The default
+      // set corresponds with HTML tags, but you can set any title or value
+      // you want, and decide how you want to deal with it where you want to
+      // use your content.
+      styles: [
+        {title: 'Normal', value: 'normal'},
+        {title: 'H1', value: 'h1'},
+        {title: 'H2', value: 'h2'},
+        {title: 'H3', value: 'h3'},
+        {title: 'H4', value: 'h4'},
+        {title: 'Quote', value: 'blockquote'},
+      ],
+      lists: [{title: 'Bullet', value: 'bullet'}],
+      // Marks let you mark up inline text in the Portable Text Editor
+      marks: {
+        // Decorators usually describe a single property – e.g. a typographic
+        // preference or highlighting
+        decorators: [
+          {title: 'Strong', value: 'strong'},
+          {title: 'Emphasis', value: 'em'},
+        ],
+        // Annotations can be any object structure – e.g. a link or a footnote.
+        annotations: [
+          {
+            title: 'URL',
+            name: 'link',
+            type: 'object',
+            fields: [
+              {
+                title: 'URL',
+                name: 'href',
+                type: 'url',
+              },
+            ],
+          },
+        ],
+      },
+    }),
+    // You can add additional types here. Note that you can't use
+    // primitive types such as 'string' and 'number' in the same array
+    // as a block type.
+    defineArrayMember({
+  type: 'image',
+  options: {hotspot: true},
+      fields: [
+        {
+          name: 'alt',
+          type: 'string',
+          title: 'Alternative Text',
+        }
+      ]
+    }),
+  ],
+})
+
+
+============================================================
+FILE: sanity/schemaTypes/categoryType.ts
+============================================================
+
+import {defineField, defineType} from 'sanity'
+
+export const videoType = defineType({
+  name: 'video',
+  title: 'Видео',
+  type: 'document',
+
+  fields: [
+
+    defineField({
+      name: 'title',
+      title: 'Название видео',
+      type: 'string',
+    }),
+
+    defineField({
+      name: 'description',
+      title: 'Описание',
+      type: 'text',
+    }),
+
+    defineField({
+      name: 'youtubeUrl',
+      title: 'Ссылка YouTube',
+      type: 'url',
+    }),
+
+    defineField({
+      name: 'date',
+      title: 'Дата публикации',
+      type: 'date',
+    }),
+
+    defineField({
+      name: 'cover',
+      title: 'Обложка',
+      type: 'image',
+      options: {
+        hotspot: true,
+      },
+    }),
+
+  ],
+})
+
+============================================================
+FILE: sanity/schemaTypes/contactType.ts
+============================================================
+
+import {defineField, defineType} from 'sanity'
+
+
+export const contactType = defineType({
+
+  name: 'contact',
+
+  title: 'Контакты',
+
+  type: 'document',
+
+
+  fields: [
+
+
+    defineField({
+
+      name: 'name',
+
+      title: 'Имя',
+
+      type: 'string',
+
+    }),
+
+
+
+    defineField({
+
+      name: 'photo',
+
+      title: 'Фото',
+
+      type: 'image',
+
+      options:{
+        hotspot:true
+      }
+
+    }),
+
+
+
+    defineField({
+
+      name:'description',
+
+      title:'Описание',
+
+      type:'text'
+
+    }),
+
+
+
+    defineField({
+
+      name:'youtube',
+
+      title:'YouTube',
+
+      type:'url'
+
+    }),
+
+
+
+    defineField({
+
+      name:'instagram',
+
+      title:'Instagram',
+
+      type:'url'
+
+    }),
+
+
+
+    defineField({
+
+      name:'tiktok',
+
+      title:'TikTok',
+
+      type:'url'
+
+    }),
+
+
+
+    defineField({
+
+      name:'telegram',
+
+      title:'Telegram',
+
+      type:'url'
+
+    }),
+
+
+
+    defineField({
+
+      name:'email',
+
+      title:'Email',
+
+      type:'string'
+
+    }),
+
+
+
+    defineField({
+
+      name:'phone',
+
+      title:'Телефон',
+
+      type:'string'
+
+    }),
+
+
+  ]
+
+})
+
+============================================================
+FILE: sanity/schemaTypes/index.ts
+============================================================
+
+import { type SchemaTypeDefinition } from 'sanity'
+
+import {blockContentType} from './blockContentType'
+import {videoType} from './videoType'
+import {articleType} from './articleType'
+import {postType} from './postType'
+import {contactType} from './contactType'
+
+
+export const schema: { types: SchemaTypeDefinition[] } = {
+
+  types: [
+
+    blockContentType,
+
+    videoType,
+
+    articleType,
+
+    postType,
+
+    contactType,
+
+  ],
+
+}
+
+============================================================
+FILE: sanity/schemaTypes/postType.ts
+============================================================
+
+import {defineField, defineType} from 'sanity'
+
+
+export const postType = defineType({
+
+  name: 'post',
+
+  title: 'Публикации',
+
+  type: 'document',
+
+
+  fields: [
+
+
+    defineField({
+
+      name:'title',
+
+      title:'Заголовок',
+
+      type:'string',
+
+    }),
+
+
+
+    defineField({
+
+      name:'slug',
+
+      title:'URL адрес',
+
+      type:'slug',
+
+      options:{
+
+        source:'title',
+
+        maxLength:96
+
+      }
+
+    }),
+
+
+
+    defineField({
+
+      name:'images',
+
+      title:'Картинки публикации',
+
+      type:'array',
+
+      validation: Rule =>
+        Rule.max(20),
+
+
+      options:{
+
+        layout:'grid'
+
+      },
+
+
+      of:[
+
+        {
+
+          type:'image',
+
+          options:{
+
+            hotspot:false
+
+          }
+
+        }
+
+      ]
+
+    }),
+
+
+
+    defineField({
+
+      name:'description',
+
+      title:'Описание',
+
+      type:'text',
+
+      rows:5
+
+    }),
+
+
+
+    defineField({
+
+      name:'date',
+
+      title:'Дата публикации',
+
+      type:'date'
+
+    }),
+
+
+
+    defineField({
+
+      name:'category',
+
+      title:'Категория',
+
+      type:'string',
+
+      options:{
+
+        list:[
+
+          {
+            title:'Экология',
+            value:'eco'
+          },
+
+          {
+            title:'Животные',
+            value:'animals'
+          },
+
+          {
+            title:'Природа',
+            value:'nature'
+          },
+
+          {
+            title:'Другое',
+            value:'other'
+          }
+
+        ]
+
+      }
+
+    })
+
+  ]
+
+})
+
+============================================================
+FILE: sanity/schemaTypes/videoType.ts
+============================================================
+
+import {defineField, defineType} from 'sanity'
+
+export const videoType = defineType({
+
+  name: 'video',
+
+  title: 'Видео',
+
+  type: 'document',
+
+  fields: [
+
+    defineField({
+      name: 'slug',
+      title: 'URL адрес',
+      type: 'slug',
+      options: {
+        source: 'title',
+        maxLength: 96,
+      },
+    }),
+
+
+    defineField({
+      name: 'title',
+      title: 'Название видео',
+      type: 'string',
+    }),
+
+
+    defineField({
+      name: 'description',
+      title: 'Описание',
+      type: 'text',
+    }),
+
+
+    defineField({
+      name: 'youtubeUrl',
+      title: 'Ссылка YouTube',
+      type: 'url',
+    }),
+
+
+    defineField({
+      name: 'date',
+      title: 'Дата публикации',
+      type: 'date',
+    }),
+
+
+    defineField({
+      name: 'cover',
+      title: 'Обложка',
+      type: 'image',
+      options: {
+        hotspot: true,
+      },
+    }),
+
+  ],
+
+})
+
+============================================================
+FILE: sanity/structure.ts
+============================================================
+
+import {StructureResolver} from 'sanity/structure'
+
+
+export const structure: StructureResolver = (S) =>
+  S.list()
+    .title('Контент')
+    .items([
+
+      S.documentTypeListItem('video')
+        .title('Видео'),
+
+
+      S.documentTypeListItem('article')
+        .title('Статьи'),
+
+
+      S.documentTypeListItem('post')
+        .title('Публикации'),
+
+
+      S.documentTypeListItem('contact')
+        .title('Контакты'),
+
+    ])
+
+============================================================
+ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ — ТОЛЬКО НАЗВАНИЯ, БЕЗ СЕКРЕТОВ
+============================================================
+
+NEXT_PUBLIC_SANITY_DATASET=СКРЫТО
+NEXT_PUBLIC_SANITY_PROJECT_ID=СКРЫТО

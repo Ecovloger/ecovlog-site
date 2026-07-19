@@ -1,0 +1,1590 @@
+# PROJECT CONTEXT
+
+==================================================
+FILE: package.json
+==================================================
+{
+  "name": "ecovlog-site",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@sanity/icons": "^5.1.0",
+    "@sanity/image-url": "^2.1.1",
+    "@sanity/vision": "^5.31.1",
+    "framer-motion": "^12.42.2",
+    "next": "16.2.10",
+    "next-sanity": "^13.1.3",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "sanity": "^5.31.1",
+    "styled-components": "^6.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@yandex/ymaps3-types": "^1.0.20315584",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.10",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
+
+
+==================================================
+FILE: next.config.ts
+==================================================
+import type { NextConfig } from "next";
+
+
+const nextConfig: NextConfig = {
+
+  images: {
+
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "cdn.sanity.io",
+      },
+    ],
+
+    formats: [
+      "image/avif",
+      "image/webp",
+    ],
+
+  },
+
+
+};
+
+export default nextConfig;
+
+==================================================
+FILE: tsconfig.json
+==================================================
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"],
+      "ymaps3": ["./node_modules/@yandex/ymaps3-types"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "global.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts"
+  ],
+  "exclude": ["node_modules"]
+}
+
+==================================================
+FILE: app/map/report/page.tsx
+==================================================
+"use client";
+
+import Link from "next/link";
+import * as React from "react";
+
+import type { LngLat } from "@yandex/ymaps3-types";
+
+import Footer from "@/components/Footer";
+import LocationPicker from "@/components/LocationPicker";
+import SectionHeader from "@/components/SectionHeader";
+import {
+  findRegion,
+  REGIONS,
+} from "@/lib/regions";
+
+const COMPLAINT_CATEGORIES = [
+  "Несанкционированная свалка",
+  "Нарушение вывоза отходов",
+  "Сжигание отходов",
+  "Загрязнение водного объекта",
+  "Загрязнение воздуха",
+  "Загрязнение или повреждение почвы",
+  "Незаконная вырубка",
+  "Нарушение на особо охраняемой природной территории",
+  "Жестокое обращение с животными",
+  "Другое экологическое нарушение",
+];
+
+const fieldClassName = `
+  w-full
+  rounded-2xl
+  border
+  border-white/10
+  bg-white/[0.055]
+  px-5
+  py-4
+  text-base
+  text-white
+  outline-none
+  transition
+  placeholder:text-white/30
+  hover:border-white/20
+  focus:border-lime-400/70
+  focus:bg-white/[0.075]
+  focus:ring-4
+  focus:ring-lime-400/10
+`;
+
+export default function ReportPage() {
+  const [regionName, setRegionName] = React.useState("");
+  const [coordinates, setCoordinates] =
+    React.useState<LngLat | null>(null);
+
+  const [photos, setPhotos] = React.useState<File[]>([]);
+  const [isSubmitted, setIsSubmitted] = React.useState(false);
+
+  const selectedRegion = findRegion(regionName);
+
+  function handleRegionChange(
+    event: React.ChangeEvent<HTMLSelectElement>,
+  ): void {
+    setRegionName(event.target.value);
+    setCoordinates(null);
+  }
+
+  function handlePhotoChange(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ): void {
+    const selectedFiles = Array.from(
+      event.target.files ?? [],
+    ).slice(0, 5);
+
+    setPhotos(selectedFiles);
+  }
+
+  function handleSubmit(
+    event: React.FormEvent<HTMLFormElement>,
+  ): void {
+    event.preventDefault();
+
+    if (!coordinates) {
+      return;
+    }
+
+    setIsSubmitted(true);
+  }
+
+  if (isSubmitted) {
+    return (
+      <main className="min-h-screen bg-neutral-950 text-white">
+        <SectionHeader current="/map" />
+
+        <section className="mx-auto flex min-h-[70vh] max-w-3xl items-center px-4 py-16 md:px-6">
+          <div className="w-full rounded-[32px] border border-white/10 bg-white/[0.05] p-7 text-center shadow-2xl backdrop-blur-2xl md:p-12">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-lime-400 text-3xl text-neutral-950">
+              ✓
+            </div>
+
+            <h1 className="mt-6 text-3xl font-bold md:text-4xl">
+              Форма заполнена
+            </h1>
+
+            <p className="mx-auto mt-4 max-w-xl leading-7 text-white/60">
+              Интерфейс подачи обращения работает. Следующим
+              этапом подключим сохранение данных и фотографий в
+              Sanity.
+            </p>
+
+            <Link
+              className="mt-8 inline-flex rounded-full bg-lime-400 px-7 py-4 font-semibold text-neutral-950 transition hover:bg-lime-300"
+              href="/map"
+            >
+              Вернуться к Экокарте
+            </Link>
+          </div>
+        </section>
+
+        <Footer />
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-neutral-950 text-white">
+      <SectionHeader current="/map" />
+
+      <section className="mx-auto max-w-5xl px-4 pb-20 pt-8 md:px-6 md:pb-28 md:pt-20">
+        <div className="text-center">
+          <Link
+            className="inline-flex items-center gap-2 text-sm text-white/45 transition hover:text-white"
+            href="/map"
+          >
+            <span aria-hidden="true">←</span>
+            Вернуться к Экокарте
+          </Link>
+
+          <h1 className="mt-6 text-3xl font-bold tracking-tight md:text-5xl">
+            Сообщить о нарушении
+          </h1>
+
+          <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-white/55 md:text-lg">
+            Опишите экологическую проблему и укажите точное
+            место на карте.
+          </p>
+        </div>
+
+        <form
+          className="mt-10 rounded-[30px] border border-white/10 bg-white/[0.035] p-5 shadow-[0_35px_120px_rgba(0,0,0,0.45)] backdrop-blur-2xl md:mt-14 md:rounded-[38px] md:p-10"
+          onSubmit={handleSubmit}
+        >
+          <div className="space-y-7">
+            <div>
+              <label
+                className="mb-3 block text-base font-semibold"
+                htmlFor="title"
+              >
+                Название проблемы
+              </label>
+
+              <input
+                className={fieldClassName}
+                id="title"
+                maxLength={140}
+                name="title"
+                placeholder="Например: незаконная свалка возле леса"
+                required
+                type="text"
+              />
+            </div>
+
+            <div>
+              <label
+                className="mb-3 block text-base font-semibold"
+                htmlFor="description"
+              >
+                Описание проблемы
+              </label>
+
+              <textarea
+                className={`${fieldClassName} min-h-40 resize-y`}
+                id="description"
+                maxLength={3000}
+                name="description"
+                placeholder="Расскажите, что произошло, как давно существует нарушение и что находится рядом"
+                required
+              />
+            </div>
+
+            <div>
+              <label
+                className="mb-3 block text-base font-semibold"
+                htmlFor="category"
+              >
+                Категория нарушения
+              </label>
+
+              <select
+                className={fieldClassName}
+                defaultValue=""
+                id="category"
+                name="category"
+                required
+              >
+                <option disabled value="">
+                  Выберите категорию
+                </option>
+
+                {COMPLAINT_CATEGORIES.map((category) => (
+                  <option
+                    className="bg-neutral-900"
+                    key={category}
+                    value={category}
+                  >
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label
+                className="mb-3 block text-base font-semibold"
+                htmlFor="region"
+              >
+                Регион
+              </label>
+
+              <select
+                className={fieldClassName}
+                id="region"
+                name="region"
+                onChange={handleRegionChange}
+                required
+                value={regionName}
+              >
+                <option disabled value="">
+                  Выберите регион
+                </option>
+
+                {REGIONS.map((region) => (
+                  <option
+                    className="bg-neutral-900"
+                    key={region.name}
+                    value={region.name}
+                  >
+                    {region.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedRegion ? (
+              <div className="animate-[fadeIn_.35s_ease-out]">
+                <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+                  <label className="block text-base font-semibold">
+                    Место нарушения
+                  </label>
+
+                  <span className="text-sm text-white/40">
+                    Укажите адрес или поставьте маркер
+                  </span>
+                </div>
+
+                <LocationPicker
+                  key={selectedRegion.name}
+                  onChange={setCoordinates}
+                  region={selectedRegion}
+                  value={coordinates}
+                />
+
+                <input
+                  name="latitude"
+                  type="hidden"
+                  value={coordinates?.[1] ?? ""}
+                />
+
+                <input
+                  name="longitude"
+                  type="hidden"
+                  value={coordinates?.[0] ?? ""}
+                />
+
+                {!coordinates && (
+                  <p className="mt-3 text-sm text-amber-300/80">
+                    Для отправки обращения необходимо отметить
+                    место нарушения.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="rounded-[26px] border border-dashed border-white/15 bg-white/[0.025] px-6 py-12 text-center">
+                <p className="font-medium text-white/65">
+                  Сначала выберите регион
+                </p>
+
+                <p className="mt-2 text-sm text-white/35">
+                  После этого здесь появится Яндекс Карта.
+                </p>
+              </div>
+            )}
+
+            <div>
+              <label
+                className="mb-3 block text-base font-semibold"
+                htmlFor="photos"
+              >
+                Фотографии
+              </label>
+
+              <label
+                className="
+                  flex
+                  min-h-48
+                  cursor-pointer
+                  flex-col
+                  items-center
+                  justify-center
+                  rounded-[26px]
+                  border
+                  border-dashed
+                  border-white/15
+                  bg-white/[0.025]
+                  px-6
+                  py-8
+                  text-center
+                  transition
+                  hover:border-lime-400/50
+                  hover:bg-lime-400/[0.04]
+                "
+                htmlFor="photos"
+              >
+                <span className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.07] text-2xl">
+                  +
+                </span>
+
+                <span className="mt-4 font-semibold">
+                  Добавить фотографии
+                </span>
+
+                <span className="mt-2 text-sm text-white/40">
+                  До 5 файлов
+                </span>
+
+                <input
+                  accept="image/jpeg,image/png,image/webp"
+                  className="sr-only"
+                  id="photos"
+                  multiple
+                  name="photos"
+                  onChange={handlePhotoChange}
+                  type="file"
+                />
+              </label>
+
+              {photos.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {photos.map((photo) => (
+                    <span
+                      className="max-w-full truncate rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-sm text-white/65"
+                      key={`${photo.name}-${photo.lastModified}`}
+                    >
+                      {photo.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="grid gap-5 md:grid-cols-2">
+              <div>
+                <label
+                  className="mb-3 block text-base font-semibold"
+                  htmlFor="name"
+                >
+                  Ваше имя
+                  <span className="ml-2 font-normal text-white/35">
+                    необязательно
+                  </span>
+                </label>
+
+                <input
+                  className={fieldClassName}
+                  id="name"
+                  name="name"
+                  placeholder="Как к вам обращаться"
+                  type="text"
+                />
+              </div>
+
+              <div>
+                <label
+                  className="mb-3 block text-base font-semibold"
+                  htmlFor="phone"
+                >
+                  Телефон
+                  <span className="ml-2 font-normal text-white/35">
+                    необязательно
+                  </span>
+                </label>
+
+                <input
+                  className={fieldClassName}
+                  id="phone"
+                  inputMode="tel"
+                  name="phone"
+                  placeholder="+7"
+                  type="tel"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label
+                className="mb-3 block text-base font-semibold"
+                htmlFor="email"
+              >
+                Электронная почта
+              </label>
+
+              <input
+                autoComplete="email"
+                className={fieldClassName}
+                id="email"
+                name="email"
+                placeholder="name@example.ru"
+                required
+                type="email"
+              />
+            </div>
+
+            <div>
+              <label
+                className="mb-3 block text-base font-semibold"
+                htmlFor="videoUrl"
+              >
+                Ссылка на видео
+                <span className="ml-2 font-normal text-white/35">
+                  необязательно
+                </span>
+              </label>
+
+              <input
+                className={fieldClassName}
+                id="videoUrl"
+                name="videoUrl"
+                placeholder="https://..."
+                type="url"
+              />
+            </div>
+          </div>
+
+          <div className="mt-10 border-t border-white/10 pt-7">
+            <button
+              className="
+                flex
+                w-full
+                items-center
+                justify-center
+                rounded-full
+                bg-lime-400
+                px-7
+                py-4
+                text-base
+                font-bold
+                text-neutral-950
+                transition
+                hover:bg-lime-300
+                disabled:cursor-not-allowed
+                disabled:bg-white/10
+                disabled:text-white/30
+                md:text-lg
+              "
+              disabled={!coordinates}
+              type="submit"
+            >
+              Отправить обращение
+            </button>
+
+            <p className="mx-auto mt-4 max-w-2xl text-center text-xs leading-5 text-white/35">
+              Нажимая «Отправить обращение», вы соглашаетесь с{" "}
+              <Link
+                className="underline decoration-white/25 underline-offset-4 transition hover:text-white/65"
+                href="/privacy"
+              >
+                условиями обработки персональных данных
+              </Link>
+              .
+            </p>
+          </div>
+        </form>
+      </section>
+
+      <Footer />
+    </main>
+  );
+}
+
+==================================================
+FILE: components/LocationPicker.tsx
+==================================================
+"use client";
+
+import * as React from "react";
+import * as ReactDOM from "react-dom";
+
+import type {
+  DomEventHandler,
+  LngLat,
+  YMapLocationRequest,
+} from "@yandex/ymaps3-types";
+import type { ReactifiedModule } from "@yandex/ymaps3-types/reactify/reactify";
+
+import type { RegionOption } from "@/lib/regions";
+
+type ReactifiedApi = ReactifiedModule<typeof ymaps3>;
+
+type LocationPickerProps = {
+  region: RegionOption;
+  value: LngLat | null;
+  onChange: (coordinates: LngLat) => void;
+};
+
+type YandexSearchResult = {
+  geometry?: {
+    coordinates?: LngLat;
+  };
+  properties?: {
+    name?: string;
+    description?: string;
+  };
+};
+
+function waitForYandexMaps(
+  timeout = 15000,
+): Promise<typeof ymaps3> {
+  return new Promise((resolve, reject) => {
+    const startedAt = Date.now();
+
+    const checkApi = (): void => {
+      if (window.ymaps3) {
+        resolve(window.ymaps3);
+        return;
+      }
+
+      if (Date.now() - startedAt >= timeout) {
+        reject(
+          new Error(
+            "API Яндекс Карт не загрузился. Проверьте API-ключ и ограничения Referer.",
+          ),
+        );
+        return;
+      }
+
+      window.setTimeout(checkApi, 100);
+    };
+
+    checkApi();
+  });
+}
+
+export default function LocationPicker({
+  region,
+  value,
+  onChange,
+}: LocationPickerProps) {
+  const [yandexMaps, setYandexMaps] =
+    React.useState<typeof ymaps3 | null>(null);
+
+  const [reactifiedApi, setReactifiedApi] =
+    React.useState<ReactifiedApi | null>(null);
+
+  const [location, setLocation] =
+    React.useState<YMapLocationRequest>({
+      center: region.center,
+      zoom: region.zoom,
+    });
+
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [searchError, setSearchError] =
+    React.useState<string | null>(null);
+
+  const [mapError, setMapError] =
+    React.useState<string | null>(null);
+
+  const [isSearching, setIsSearching] =
+    React.useState(false);
+
+  React.useEffect(() => {
+    let isCancelled = false;
+
+    async function initializeMap(): Promise<void> {
+      try {
+        const mapsApi = await waitForYandexMaps();
+
+        await mapsApi.ready;
+
+        const ymaps3React = await mapsApi.import(
+          "@yandex/ymaps3-reactify",
+        );
+
+        if (isCancelled) {
+          return;
+        }
+
+        const reactify = ymaps3React.reactify.bindTo(
+          React,
+          ReactDOM,
+        );
+
+        setYandexMaps(mapsApi);
+        setReactifiedApi(reactify.module(mapsApi));
+      } catch (error) {
+        console.error(
+          "Yandex Maps initialization error:",
+          error,
+        );
+
+        if (!isCancelled) {
+          setMapError(
+            error instanceof Error
+              ? error.message
+              : "Не удалось загрузить Яндекс Карты.",
+          );
+        }
+      }
+    }
+
+    initializeMap();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    setLocation({
+      center: region.center,
+      zoom: region.zoom,
+      duration: 500,
+    });
+
+    setSearchQuery("");
+    setSearchError(null);
+  }, [region]);
+
+  const handleCoordinatesChange = React.useCallback(
+    (coordinates: LngLat): void => {
+      onChange(coordinates);
+      setSearchError(null);
+    },
+    [onChange],
+  );
+
+  const handleMapClick = React.useCallback<DomEventHandler>(
+    (_object, event): void => {
+      handleCoordinatesChange(event.coordinates);
+    },
+    [handleCoordinatesChange],
+  );
+
+  const handleMarkerDragEnd = React.useCallback(
+    (coordinates: LngLat): void => {
+      handleCoordinatesChange(coordinates);
+    },
+    [handleCoordinatesChange],
+  );
+
+  async function handleSearch(): Promise<void> {
+
+    const normalizedQuery = searchQuery.trim();
+
+    if (!normalizedQuery || !yandexMaps) {
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchError(null);
+
+    try {
+      const requestText = `${normalizedQuery}, ${region.name}`;
+
+      const results = (await yandexMaps.search({
+        text: requestText,
+      })) as YandexSearchResult[];
+
+      const coordinates =
+        results[0]?.geometry?.coordinates;
+
+      if (!coordinates) {
+        setSearchError(
+          "Адрес не найден. Уточните запрос или поставьте точку вручную.",
+        );
+        return;
+      }
+
+      onChange(coordinates);
+
+      setLocation({
+        center: coordinates,
+        zoom: 16,
+        duration: 600,
+      });
+    } catch (error) {
+      console.error("Yandex address search error:", error);
+
+      setSearchError(
+        "Не удалось выполнить поиск. Попробуйте ещё раз или укажите место на карте.",
+      );
+    } finally {
+      setIsSearching(false);
+    }
+  }
+
+  if (mapError) {
+    return (
+      <div className="flex min-h-[430px] items-center justify-center rounded-[28px] border border-red-400/20 bg-red-400/5 px-6 text-center">
+        <div className="max-w-lg">
+          <p className="text-xl font-semibold">
+            Карта временно недоступна
+          </p>
+
+          <p className="mt-3 text-sm leading-6 text-white/55">
+            {mapError}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!reactifiedApi) {
+    return (
+      <div className="flex min-h-[430px] items-center justify-center rounded-[28px] border border-white/10 bg-white/[0.035]">
+        <div className="text-center">
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-white/15 border-t-lime-400" />
+
+          <p className="mt-4 text-sm text-white/60">
+            Загружаем карту
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const {
+    YMap,
+    YMapDefaultFeaturesLayer,
+    YMapDefaultSchemeLayer,
+    YMapListener,
+    YMapMarker,
+  } = reactifiedApi;
+
+  return (
+    <div>
+      <div className="mb-4">
+  <div className="flex flex-col gap-3 sm:flex-row">
+    <div className="relative flex-1">
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-lg text-white/40"
+      >
+        ⌕
+      </span>
+
+      <input
+        aria-label="Поиск адреса"
+        className="
+          h-14
+          w-full
+          rounded-2xl
+          border
+          border-white/10
+          bg-white/[0.055]
+          py-4
+          pl-12
+          pr-5
+          text-base
+          text-white
+          outline-none
+          transition
+          placeholder:text-white/30
+          hover:border-white/20
+          focus:border-lime-400/70
+          focus:bg-white/[0.075]
+          focus:ring-4
+          focus:ring-lime-400/10
+        "
+        onChange={(event) => {
+          setSearchQuery(event.target.value);
+          setSearchError(null);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            void handleSearch();
+          }
+        }}
+        placeholder="Введите улицу, дом или название места"
+        type="search"
+        value={searchQuery}
+      />
+    </div>
+
+    <button
+      className="
+        h-14
+        shrink-0
+        rounded-2xl
+        bg-lime-400
+        px-7
+        font-bold
+        text-neutral-950
+        transition
+        hover:bg-lime-300
+        disabled:cursor-not-allowed
+        disabled:opacity-50
+      "
+      disabled={
+        isSearching ||
+        searchQuery.trim().length === 0
+      }
+      onClick={() => {
+        void handleSearch();
+      }}
+      type="button"
+    >
+      {isSearching ? "Ищем…" : "Найти"}
+    </button>
+  </div>
+
+  {searchError && (
+    <p className="mt-3 text-sm leading-6 text-amber-300">
+      {searchError}
+    </p>
+  )}
+</div>
+
+      <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-black shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
+        <div className="h-[430px] w-full md:h-[560px]">
+          <YMap location={location}>
+            <YMapDefaultSchemeLayer />
+            <YMapDefaultFeaturesLayer />
+
+            <YMapListener onClick={handleMapClick} />
+
+            {value && (
+              <YMapMarker
+                coordinates={value}
+                draggable
+                onDragEnd={handleMarkerDragEnd}
+              >
+                <div
+                  aria-label="Выбранное место нарушения"
+                  className="
+                    flex
+                    h-12
+                    w-12
+                    -translate-x-1/2
+                    -translate-y-full
+                    cursor-grab
+                    items-center
+                    justify-center
+                    rounded-full
+                    border-[3px]
+                    border-white
+                    bg-lime-500
+                    text-xl
+                    font-black
+                    text-neutral-950
+                    shadow-[0_10px_30px_rgba(0,0,0,0.55)]
+                    active:cursor-grabbing
+                  "
+                  role="img"
+                >
+                  !
+                </div>
+              </YMapMarker>
+            )}
+          </YMap>
+        </div>
+
+        {!value && (
+          <div className="pointer-events-none absolute bottom-4 left-4 right-4 flex justify-center md:bottom-6">
+            <div className="rounded-full border border-white/15 bg-black/75 px-5 py-3 text-center text-sm font-medium text-white/75 shadow-xl backdrop-blur-xl">
+              Найдите адрес или нажмите на нужное место
+            </div>
+          </div>
+        )}
+
+        {value && (
+          <div className="pointer-events-none absolute bottom-4 left-4 right-4 flex justify-center md:bottom-6">
+            <div className="rounded-full border border-lime-400/25 bg-black/75 px-5 py-3 text-center text-sm font-medium text-white/80 shadow-xl backdrop-blur-xl">
+              Точка выбрана — маркер можно передвинуть
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+==================================================
+FILE: lib/regions.ts
+==================================================
+export type RegionOption = {
+  name: string;
+  center: [number, number];
+  zoom: number;
+};
+
+export const REGIONS: RegionOption[] = [
+  {
+    name: "Алтайский край",
+    center: [83.7636, 53.3474],
+    zoom: 6,
+  },
+  {
+    name: "Амурская область",
+    center: [127.5272, 52.8032],
+    zoom: 5,
+  },
+  {
+    name: "Архангельская область",
+    center: [43.5, 63.5],
+    zoom: 5,
+  },
+  {
+    name: "Астраханская область",
+    center: [47.2367, 47.8517],
+    zoom: 7,
+  },
+  {
+    name: "Белгородская область",
+    center: [36.5873, 50.708],
+    zoom: 7,
+  },
+  {
+    name: "Брянская область",
+    center: [33.4425, 52.8873],
+    zoom: 7,
+  },
+  {
+    name: "Владимирская область",
+    center: [40.407, 56.129],
+    zoom: 7,
+  },
+  {
+    name: "Волгоградская область",
+    center: [44.5169, 49.2679],
+    zoom: 6,
+  },
+  {
+    name: "Вологодская область",
+    center: [40.0, 60.0],
+    zoom: 6,
+  },
+  {
+    name: "Воронежская область",
+    center: [39.2003, 51.6608],
+    zoom: 7,
+  },
+  {
+    name: "Еврейская автономная область",
+    center: [132.9247, 48.7946],
+    zoom: 7,
+  },
+  {
+    name: "Забайкальский край",
+    center: [115.5, 52.0],
+    zoom: 5,
+  },
+  {
+    name: "Ивановская область",
+    center: [40.9739, 57.0003],
+    zoom: 7,
+  },
+  {
+    name: "Иркутская область",
+    center: [104.2807, 52.2864],
+    zoom: 5,
+  },
+  {
+    name: "Кабардино-Балкарская Республика",
+    center: [43.6071, 43.4847],
+    zoom: 8,
+  },
+  {
+    name: "Калининградская область",
+    center: [20.5073, 54.7074],
+    zoom: 8,
+  },
+  {
+    name: "Калужская область",
+    center: [36.2612, 54.5138],
+    zoom: 7,
+  },
+  {
+    name: "Камчатский край",
+    center: [158.65, 56.0],
+    zoom: 5,
+  },
+  {
+    name: "Карачаево-Черкесская Республика",
+    center: [42.0578, 43.7732],
+    zoom: 8,
+  },
+  {
+    name: "Кемеровская область — Кузбасс",
+    center: [86.0873, 55.3547],
+    zoom: 6,
+  },
+  {
+    name: "Кировская область",
+    center: [49.6679, 58.6036],
+    zoom: 6,
+  },
+  {
+    name: "Костромская область",
+    center: [40.9269, 57.7679],
+    zoom: 7,
+  },
+  {
+    name: "Краснодарский край",
+    center: [38.9765, 45.0355],
+    zoom: 6,
+  },
+  {
+    name: "Красноярский край",
+    center: [93.0, 64.0],
+    zoom: 4,
+  },
+  {
+    name: "Курганская область",
+    center: [65.3411, 55.4443],
+    zoom: 7,
+  },
+  {
+    name: "Курская область",
+    center: [36.193, 51.7304],
+    zoom: 7,
+  },
+  {
+    name: "Ленинградская область",
+    center: [30.5, 59.9],
+    zoom: 7,
+  },
+  {
+    name: "Липецкая область",
+    center: [39.5992, 52.6102],
+    zoom: 7,
+  },
+  {
+    name: "Магаданская область",
+    center: [150.8, 62.9],
+    zoom: 5,
+  },
+  {
+    name: "Москва",
+    center: [37.6173, 55.7558],
+    zoom: 10,
+  },
+  {
+    name: "Московская область",
+    center: [37.35, 55.55],
+    zoom: 7,
+  },
+  {
+    name: "Мурманская область",
+    center: [34.0, 68.0],
+    zoom: 6,
+  },
+  {
+    name: "Ненецкий автономный округ",
+    center: [53.0, 68.8],
+    zoom: 5,
+  },
+  {
+    name: "Нижегородская область",
+    center: [44.0059, 56.3269],
+    zoom: 6,
+  },
+  {
+    name: "Новгородская область",
+    center: [31.2758, 58.5215],
+    zoom: 7,
+  },
+  {
+    name: "Новосибирская область",
+    center: [82.9204, 55.0302],
+    zoom: 6,
+  },
+  {
+    name: "Омская область",
+    center: [73.3686, 54.9893],
+    zoom: 6,
+  },
+  {
+    name: "Оренбургская область",
+    center: [55.0969, 51.7682],
+    zoom: 6,
+  },
+  {
+    name: "Орловская область",
+    center: [36.0638, 52.9703],
+    zoom: 7,
+  },
+  {
+    name: "Пензенская область",
+    center: [45.0183, 53.195],
+    zoom: 7,
+  },
+  {
+    name: "Пермский край",
+    center: [56.2294, 58.0105],
+    zoom: 6,
+  },
+  {
+    name: "Приморский край",
+    center: [132.0, 44.1],
+    zoom: 6,
+  },
+  {
+    name: "Псковская область",
+    center: [28.3325, 57.8193],
+    zoom: 7,
+  },
+  {
+    name: "Республика Адыгея",
+    center: [40.106, 44.6098],
+    zoom: 8,
+  },
+  {
+    name: "Республика Алтай",
+    center: [86.0, 50.8],
+    zoom: 7,
+  },
+  {
+    name: "Республика Башкортостан",
+    center: [56.0375, 54.7351],
+    zoom: 6,
+  },
+  {
+    name: "Республика Бурятия",
+    center: [107.5846, 51.8345],
+    zoom: 6,
+  },
+  {
+    name: "Республика Дагестан",
+    center: [47.5047, 42.9831],
+    zoom: 7,
+  },
+  {
+    name: "Республика Ингушетия",
+    center: [44.8, 43.2],
+    zoom: 9,
+  },
+  {
+    name: "Республика Калмыкия",
+    center: [44.2702, 46.3078],
+    zoom: 7,
+  },
+  {
+    name: "Республика Карелия",
+    center: [33.0, 64.0],
+    zoom: 6,
+  },
+  {
+    name: "Республика Коми",
+    center: [54.0, 64.0],
+    zoom: 5,
+  },
+  {
+    name: "Республика Марий Эл",
+    center: [47.8861, 56.6316],
+    zoom: 7,
+  },
+  {
+    name: "Республика Мордовия",
+    center: [45.1749, 54.1874],
+    zoom: 7,
+  },
+  {
+    name: "Республика Саха (Якутия)",
+    center: [129.7, 66.4],
+    zoom: 4,
+  },
+  {
+    name: "Республика Северная Осетия — Алания",
+    center: [44.6819, 43.0246],
+    zoom: 8,
+  },
+  {
+    name: "Республика Татарстан",
+    center: [49.1064, 55.7961],
+    zoom: 7,
+  },
+  {
+    name: "Республика Тыва",
+    center: [94.4378, 51.7191],
+    zoom: 6,
+  },
+  {
+    name: "Республика Хакасия",
+    center: [91.4424, 53.7212],
+    zoom: 7,
+  },
+  {
+    name: "Ростовская область",
+    center: [39.7015, 47.2357],
+    zoom: 6,
+  },
+  {
+    name: "Рязанская область",
+    center: [39.7349, 54.6292],
+    zoom: 7,
+  },
+  {
+    name: "Самарская область",
+    center: [50.1002, 53.1959],
+    zoom: 7,
+  },
+  {
+    name: "Санкт-Петербург",
+    center: [30.3159, 59.9391],
+    zoom: 10,
+  },
+  {
+    name: "Саратовская область",
+    center: [46.0342, 51.5336],
+    zoom: 6,
+  },
+  {
+    name: "Сахалинская область",
+    center: [143.0, 50.5],
+    zoom: 5,
+  },
+  {
+    name: "Свердловская область",
+    center: [60.5975, 56.8389],
+    zoom: 6,
+  },
+  {
+    name: "Смоленская область",
+    center: [32.0453, 54.7826],
+    zoom: 7,
+  },
+  {
+    name: "Ставропольский край",
+    center: [41.9691, 45.0445],
+    zoom: 7,
+  },
+  {
+    name: "Тамбовская область",
+    center: [41.4523, 52.7212],
+    zoom: 7,
+  },
+  {
+    name: "Тверская область",
+    center: [35.9119, 56.8587],
+    zoom: 6,
+  },
+  {
+    name: "Томская область",
+    center: [84.9482, 56.4846],
+    zoom: 6,
+  },
+  {
+    name: "Тульская область",
+    center: [37.6178, 54.1931],
+    zoom: 7,
+  },
+  {
+    name: "Тюменская область",
+    center: [65.5343, 57.153],
+    zoom: 6,
+  },
+  {
+    name: "Удмуртская Республика",
+    center: [53.2048, 56.8527],
+    zoom: 7,
+  },
+  {
+    name: "Ульяновская область",
+    center: [48.4026, 54.3142],
+    zoom: 7,
+  },
+  {
+    name: "Хабаровский край",
+    center: [135.0, 55.0],
+    zoom: 5,
+  },
+  {
+    name: "Ханты-Мансийский автономный округ — Югра",
+    center: [69.0189, 61.0032],
+    zoom: 5,
+  },
+  {
+    name: "Челябинская область",
+    center: [61.4026, 55.1604],
+    zoom: 6,
+  },
+  {
+    name: "Чеченская Республика",
+    center: [45.6982, 43.3178],
+    zoom: 8,
+  },
+  {
+    name: "Чувашская Республика",
+    center: [47.2519, 56.1439],
+    zoom: 8,
+  },
+  {
+    name: "Чукотский автономный округ",
+    center: [172.0, 66.0],
+    zoom: 4,
+  },
+  {
+    name: "Ямало-Ненецкий автономный округ",
+    center: [74.0, 66.5],
+    zoom: 5,
+  },
+  {
+    name: "Ярославская область",
+    center: [39.8938, 57.6261],
+    zoom: 7,
+  },
+];
+
+export function findRegion(
+  regionName: string,
+): RegionOption | undefined {
+  return REGIONS.find((region) => region.name === regionName);
+}
+
+==================================================
+FILE: sanity.config.ts
+==================================================
+'use client'
+
+/**
+ * This configuration is used to for the Sanity Studio that’s mounted on the `/app/studio/[[...tool]]/page.tsx` route
+ */
+
+import {visionTool} from '@sanity/vision'
+import {defineConfig} from 'sanity'
+import {structureTool} from 'sanity/structure'
+
+// Go to https://www.sanity.io/docs/api-versioning to learn how API versioning works
+import {apiVersion, dataset, projectId} from './sanity/env'
+import {schema} from './sanity/schemaTypes'
+import {structure} from './sanity/structure'
+
+export default defineConfig({
+  basePath: '/studio',
+  projectId,
+  dataset,
+  // Add and edit the content schema in the './sanity/schemaTypes' folder
+  schema,
+  plugins: [
+    structureTool({structure}),
+    // Vision is for querying with GROQ from inside the Studio
+    // https://www.sanity.io/docs/the-vision-plugin
+    visionTool({defaultApiVersion: apiVersion}),
+  ],
+})
+
+
+==================================================
+FILE: sanity.cli.ts
+==================================================
+/**
+* This configuration file lets you run `$ sanity [command]` in this folder
+* Go to https://www.sanity.io/docs/cli to learn more.
+**/
+import { defineCliConfig } from 'sanity/cli'
+
+const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID
+const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET
+
+export default defineCliConfig({ api: { projectId, dataset } })
+
+
+==================================================
+FILE: sanity/schemaTypes/index.ts
+==================================================
+import {type SchemaTypeDefinition} from 'sanity'
+
+import {blockContentType} from './blockContentType'
+import {videoType} from './videoType'
+import {articleType} from './articleType'
+import {postType} from './postType'
+import {contactType} from './contactType'
+import {complaintType} from './complaintType'
+
+export const schema: {types: SchemaTypeDefinition[]} = {
+  types: [
+    blockContentType,
+    videoType,
+    articleType,
+    postType,
+    contactType,
+    complaintType,
+  ],
+}
+
+==================================================
+DIRECTORY STRUCTURE (src/app/lib/components/sanity)
+==================================================
+app
+app/api
+app/api/complaints
+app/api/complaints/route.ts
+app/articles
+app/articles/[slug]
+app/articles/[slug]/page.tsx
+app/articles/page.tsx
+app/contacts
+app/contacts/page.tsx
+app/favicon.ico
+app/globals.css
+app/layout.tsx
+app/map
+app/map/page.tsx
+app/map/report
+app/map/report/page.tsx
+app/news
+app/news/page.tsx
+app/page.tsx
+app/posts
+app/posts/[slug]
+app/posts/[slug]/page.tsx
+app/posts/page.tsx
+app/science
+app/science/page.tsx
+app/studio
+app/studio/[[...tool]]
+app/studio/[[...tool]]/page.tsx
+app/videos
+app/videos/[slug]
+app/videos/[slug]/page.tsx
+app/videos/page.tsx
+components
+components/BackButton.tsx
+components/ContactButtons.tsx
+components/EcoMap.tsx
+components/Footer.tsx
+components/Header.tsx
+components/HomeHeader.tsx
+components/ImageCarousel.tsx
+components/LocationPicker.tsx
+components/PageBackground.tsx
+components/Pagination.tsx
+components/SectionCards.tsx
+components/SectionHeader.tsx
+components/SectionNavigation.tsx
+components/VideoCard.tsx
+lib
+lib/regions.ts
+sanity
+sanity/.DS_Store
+sanity/env.ts
+sanity/lib
+sanity/lib/client.ts
+sanity/lib/image.ts
+sanity/lib/live.ts
+sanity/lib/writeClient.ts
+sanity/sanity
+sanity/schemaTypes
+sanity/schemaTypes/articleType.ts
+sanity/schemaTypes/authorType.ts
+sanity/schemaTypes/blockContentType.ts
+sanity/schemaTypes/categoryType.ts
+sanity/schemaTypes/complaintType.ts
+sanity/schemaTypes/contactType.ts
+sanity/schemaTypes/index.ts
+sanity/schemaTypes/postType.ts
+sanity/schemaTypes/videoType.ts
+sanity/structure.ts

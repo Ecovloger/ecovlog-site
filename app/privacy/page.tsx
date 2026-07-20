@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
   title: "Политика конфиденциальности | EcoVlog",
@@ -11,13 +12,13 @@ const CONTACT_EMAIL = "ya-gr@mail.ru";
 
 export default function PrivacyPage() {
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
-      <article className="space-y-10 text-neutral-800">
-        <header className="space-y-4 border-b border-neutral-200 pb-8">
-          <h1 className="text-3xl font-bold tracking-tight text-neutral-950 sm:text-4xl">
+    <main className="min-h-screen px-4 py-10 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
+      <article className="mx-auto w-full max-w-5xl space-y-10 rounded-3xl border border-white/10 bg-black/75 p-6 text-base leading-8 text-white/85 shadow-2xl shadow-black/30 backdrop-blur-md sm:p-10 lg:p-12">
+        <header className="space-y-4 border-b border-white/20 pb-8">
+          <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
             Политика конфиденциальности
           </h1>
-          <p className="text-sm text-neutral-500">
+          <p className="text-sm text-white/55">
             Последнее обновление: {UPDATED_AT}
           </p>
         </header>
@@ -34,7 +35,7 @@ export default function PrivacyPage() {
             обработкой информации и реализацией прав пользователей, можно
             обратиться по адресу{" "}
             <a
-              className="font-medium underline underline-offset-4"
+              className="font-semibold text-lime-400 underline decoration-lime-400/50 underline-offset-4 transition-colors hover:text-lime-300"
               href={`mailto:${CONTACT_EMAIL}`}
             >
               {CONTACT_EMAIL}
@@ -50,7 +51,7 @@ export default function PrivacyPage() {
 
         <LegalSection title="1. Какая информация может обрабатываться">
           <p>При использовании сайта могут обрабатываться:</p>
-          <ul className="list-disc space-y-2 pl-6">
+          <ul className="list-disc space-y-3 pl-6 marker:text-lime-400">
             <li>
               сведения, которые пользователь самостоятельно указывает в формах
               обратной связи, комментариях, сообщениях или электронной почте;
@@ -82,7 +83,7 @@ export default function PrivacyPage() {
 
         <LegalSection title="2. Цели обработки информации">
           <p>Полученная информация может использоваться для:</p>
-          <ul className="list-disc space-y-2 pl-6">
+          <ul className="list-disc space-y-3 pl-6 marker:text-lime-400">
             <li>работы сайта и предоставления его функций;</li>
             <li>обработки обращений и обратной связи;</li>
             <li>ответов на вопросы пользователей;</li>
@@ -98,7 +99,7 @@ export default function PrivacyPage() {
 
         <LegalSection title="3. Правовые основания обработки">
           <p>Информация обрабатывается на основании:</p>
-          <ul className="list-disc space-y-2 pl-6">
+          <ul className="list-disc space-y-3 pl-6 marker:text-lime-400">
             <li>согласия пользователя;</li>
             <li>
               необходимости совершения действий по запросу пользователя или
@@ -118,7 +119,7 @@ export default function PrivacyPage() {
           <p>
             Дополнительная информация приведена в{" "}
             <a
-              className="font-medium underline underline-offset-4"
+              className="font-semibold text-lime-400 underline decoration-lime-400/50 underline-offset-4 transition-colors hover:text-lime-300"
               href="/cookies"
             >
               Политике использования файлов cookie
@@ -133,7 +134,7 @@ export default function PrivacyPage() {
             самостоятельной рекламы.
           </p>
           <p>Передача может осуществляться:</p>
-          <ul className="list-disc space-y-2 pl-6">
+          <ul className="list-disc space-y-3 pl-6 marker:text-lime-400">
             <li>
               поставщикам хостинга, аналитики, защиты сайта, электронной почты и
               иных технических сервисов;
@@ -177,7 +178,7 @@ export default function PrivacyPage() {
 
         <LegalSection title="8. Права пользователя">
           <p>Пользователь вправе:</p>
-          <ul className="list-disc space-y-2 pl-6">
+          <ul className="list-disc space-y-3 pl-6 marker:text-lime-400">
             <li>запросить сведения об обработке своих данных;</li>
             <li>потребовать уточнения, ограничения или прекращения обработки;</li>
             <li>отозвать ранее предоставленное согласие;</li>
@@ -190,7 +191,7 @@ export default function PrivacyPage() {
           <p>
             Для направления запроса используйте адрес{" "}
             <a
-              className="font-medium underline underline-offset-4"
+              className="font-semibold text-lime-400 underline decoration-lime-400/50 underline-offset-4 transition-colors hover:text-lime-300"
               href={`mailto:${CONTACT_EMAIL}`}
             >
               {CONTACT_EMAIL}
@@ -232,7 +233,7 @@ export default function PrivacyPage() {
             <br />
             Электронная почта:{" "}
             <a
-              className="font-medium underline underline-offset-4"
+              className="font-semibold text-lime-400 underline decoration-lime-400/50 underline-offset-4 transition-colors hover:text-lime-300"
               href={`mailto:${CONTACT_EMAIL}`}
             >
               {CONTACT_EMAIL}
@@ -247,16 +248,16 @@ export default function PrivacyPage() {
 
 type LegalSectionProps = {
   title: string;
-  children: React.ReactNode;
+  children: ReactNode;
 };
 
 function LegalSection({ title, children }: LegalSectionProps) {
   return (
     <section className="space-y-4">
-      <h2 className="text-2xl font-semibold tracking-tight text-neutral-950">
+      <h2 className="text-2xl font-semibold tracking-tight text-white">
         {title}
       </h2>
-      <div className="space-y-4 leading-7">{children}</div>
+      <div className="space-y-4 text-white/80 [&_strong]:text-white">{children}</div>
     </section>
   );
 }

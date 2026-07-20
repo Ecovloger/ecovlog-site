@@ -1,436 +1,293 @@
 "use client";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+
 import { urlFor } from "@/sanity/lib/image";
 
+type SanityImage = {
+  _key?: string;
+  asset?: {
+    _ref?: string;
+    _id?: string;
+  };
+};
+
+type ImageCarouselProps = {
+  images?: SanityImage[] | null;
+  title?: string | null;
+};
+
+function hasValidImageAsset(
+  image: SanityImage | null | undefined,
+): image is SanityImage {
+  if (!image?.asset) {
+    return false;
+  }
+
+  return Boolean(image.asset._ref || image.asset._id);
+}
+
+function getImageUrl(image: SanityImage): string | null {
+  try {
+    return urlFor(image)
+      .width(1200)
+      .fit("max")
+      .auto("format")
+      .url();
+  } catch {
+    return null;
+  }
+}
 
 export default function ImageCarousel({
-
-images,
-title
-
-}:{
-
-images:any[];
-title:string;
-
-}){
-
-
-const [active,setActive] = useState(0);
-
-
-
-if(!images || images.length === 0){
-
-return null;
-
-}
-
-
-
-const next = ()=>{
-
-setActive(
-(active + 1) % images.length
-);
-
-};
-
-
-
-const previous = ()=>{
-
-setActive(
-(active - 1 + images.length) % images.length
-);
-
-};
-
-
-
-
-const getPosition = (index:number)=>{
-
-
-const length = images.length;
-
-
-let position =
-(index - active + length) % length;
-
-
-
-if(position > length / 2){
-
-position -= length;
-
-}
-
-
-
-return position;
-
-};
-
-
-
-
-
-return (
-
-
-<div
-
-className="
-relative
-w-full
-h-[560px]
-md:h-[650px]
-flex
-items-center
-justify-center
-"
-
->
-
-
-
-<div
-
-className="
-relative
-w-[300px]
-h-[470px]
-md:w-[400px]
-md:h-[580px]
-"
-
->
-
-
-<AnimatePresence>
-
-
-
-{
-
-
-images.map((image,index)=>{
-
-
-const position =
-getPosition(index);
-
-
-
-if(Math.abs(position)>3){
-
-return null;
-
-}
-
-
-
-const isActive =
-position === 0;
-
-
-
-return (
-
-
-
-<motion.div
-
-key={index}
-
-
-onClick={()=>{
-
-if(isActive){
-
-next();
-
-}else{
-
-setActive(index);
-
-}
-
-}}
-
-
-
-drag={isActive ? "x" : false}
-
-
-
-dragConstraints={{
-left:0,
-right:0
-}}
-
-
-
-onDragEnd={(e,info)=>{
-
-
-if(info.offset.x < -80){
-
-next();
-
-}
-
-
-if(info.offset.x > 80){
-
-previous();
-
-}
-
-
-}}
-
-
-
-animate={{
-
-x:
-position === 0
-?
-0
-:
-position > 0
-?
-position * 100
-:
-position * 100,
-
-
-scale:
-position === 0
-?
-1
-:
-0.88 - Math.abs(position)*0.05,
-
-
-rotate:
-position === 0
-?
-0
-:
-position > 0
-?
-8
-:
--8,
-
-
-opacity:
-position === 0
-?
-1
-:
-Math.max(
-0.3,
-1 - Math.abs(position)*0.25
-),
-
-
-zIndex:
-100-Math.abs(position)
-
-}}
-
-
-
-transition={{
-
-type:"spring",
-
-stiffness:170,
-
-damping:24
-
-}}
-
-
-
-className="
-absolute
-inset-0
-flex
-items-center
-justify-center
-"
-
->
-
-
-
-<div
-
-className="
-relative
-w-full
-h-full
-rounded-[32px]
-border
-border-white/20
-bg-white/10
-backdrop-blur-2xl
-shadow-[0_30px_80px_rgba(0,0,0,0.5)]
-flex
-items-center
-justify-center
-p-4
-"
-
->
-
-
-<img
-
-
-src={
-
-urlFor(image)
-.width(1200)
-.fit("max")
-.url()
-
-}
-
-
-alt={title}
-
-
-
-className="
-max-w-full
-max-h-full
-object-contain
-rounded-2xl
-"
-
- />
-
-
-
-<div
-
-className="
-absolute
-inset-0
-rounded-[32px]
-bg-gradient-to-br
-from-white/20
-via-transparent
-to-transparent
-pointer-events-none
-"
-
-/>
-
-
-
-</div>
-
-
-
-</motion.div>
-
-
-)
-
-
-})
-
-
-}
-
-
-
-</AnimatePresence>
-
-
-</div>
-
-
-
-
-
-
-
-
-<button
-
-onClick={previous}
-
-className="
-absolute
-left-3
-md:left-5
-top-1/2
--translate-y-1/2
-w-12
-h-12
-rounded-full
-bg-white/10
-border
-border-white/20
-backdrop-blur-xl
-text-2xl
-hover:bg-white/20
-transition
-"
-
->
-
-‹
-
-</button>
-
-
-
-
-
-<button
-
-onClick={next}
-
-className="
-absolute
-right-3
-md:right-5
-top-1/2
--translate-y-1/2
-w-12
-h-12
-rounded-full
-bg-white/10
-border
-border-white/20
-backdrop-blur-xl
-text-2xl
-hover:bg-white/20
-transition
-"
-
->
-
-›
-
-</button>
-
-
-
-</div>
-
-
-)
-
+  images,
+  title,
+}: ImageCarouselProps) {
+  const validImages = useMemo(() => {
+    if (!Array.isArray(images)) {
+      return [];
+    }
+
+    return images.filter(hasValidImageAsset);
+  }, [images]);
+
+  const [active, setActive] = useState(0);
+
+  useEffect(() => {
+    if (validImages.length === 0) {
+      setActive(0);
+      return;
+    }
+
+    if (active >= validImages.length) {
+      setActive(0);
+    }
+  }, [active, validImages.length]);
+
+  if (validImages.length === 0) {
+    return null;
+  }
+
+  const next = () => {
+    setActive((current) => (current + 1) % validImages.length);
+  };
+
+  const previous = () => {
+    setActive(
+      (current) =>
+        (current - 1 + validImages.length) % validImages.length,
+    );
+  };
+
+  const getPosition = (index: number) => {
+    const length = validImages.length;
+
+    let position = (index - active + length) % length;
+
+    if (position > length / 2) {
+      position -= length;
+    }
+
+    return position;
+  };
+
+  return (
+    <div
+      className="
+        relative
+        flex
+        h-[560px]
+        w-full
+        items-center
+        justify-center
+        md:h-[650px]
+      "
+    >
+      <div
+        className="
+          relative
+          h-[470px]
+          w-[300px]
+          md:h-[580px]
+          md:w-[400px]
+        "
+      >
+        <AnimatePresence>
+          {validImages.map((image, index) => {
+            const position = getPosition(index);
+
+            if (Math.abs(position) > 3) {
+              return null;
+            }
+
+            const imageUrl = getImageUrl(image);
+
+            if (!imageUrl) {
+              return null;
+            }
+
+            const isActive = position === 0;
+
+            return (
+              <motion.div
+                key={image._key ?? `${imageUrl}-${index}`}
+                onClick={() => {
+                  if (isActive) {
+                    next();
+                  } else {
+                    setActive(index);
+                  }
+                }}
+                drag={isActive ? "x" : false}
+                dragConstraints={{
+                  left: 0,
+                  right: 0,
+                }}
+                onDragEnd={(_, info) => {
+                  if (info.offset.x < -80) {
+                    next();
+                  }
+
+                  if (info.offset.x > 80) {
+                    previous();
+                  }
+                }}
+                animate={{
+                  x: position * 100,
+                  scale:
+                    position === 0
+                      ? 1
+                      : 0.88 - Math.abs(position) * 0.05,
+                  rotate:
+                    position === 0
+                      ? 0
+                      : position > 0
+                        ? 8
+                        : -8,
+                  opacity:
+                    position === 0
+                      ? 1
+                      : Math.max(
+                          0.3,
+                          1 - Math.abs(position) * 0.25,
+                        ),
+                  zIndex: 100 - Math.abs(position),
+                }}
+                transition={{
+                  type: "spring",
+                  stiffness: 170,
+                  damping: 24,
+                }}
+                className="
+                  absolute
+                  inset-0
+                  flex
+                  items-center
+                  justify-center
+                "
+              >
+                <div
+                  className="
+                    relative
+                    flex
+                    h-full
+                    w-full
+                    items-center
+                    justify-center
+                    rounded-[32px]
+                    border
+                    border-white/20
+                    bg-white/10
+                    p-4
+                    shadow-[0_30px_80px_rgba(0,0,0,0.5)]
+                    backdrop-blur-2xl
+                  "
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={imageUrl}
+                    alt={title?.trim() || "Изображение публикации"}
+                    className="
+                      max-h-full
+                      max-w-full
+                      rounded-2xl
+                      object-contain
+                    "
+                  />
+
+                  <div
+                    className="
+                      pointer-events-none
+                      absolute
+                      inset-0
+                      rounded-[32px]
+                      bg-gradient-to-br
+                      from-white/20
+                      via-transparent
+                      to-transparent
+                    "
+                  />
+                </div>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+      </div>
+
+      {validImages.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={previous}
+            aria-label="Предыдущее изображение"
+            className="
+              absolute
+              left-3
+              top-1/2
+              h-12
+              w-12
+              -translate-y-1/2
+              rounded-full
+              border
+              border-white/20
+              bg-white/10
+              text-2xl
+              backdrop-blur-xl
+              transition
+              hover:bg-white/20
+              md:left-5
+            "
+          >
+            ‹
+          </button>
+
+          <button
+            type="button"
+            onClick={next}
+            aria-label="Следующее изображение"
+            className="
+              absolute
+              right-3
+              top-1/2
+              h-12
+              w-12
+              -translate-y-1/2
+              rounded-full
+              border
+              border-white/20
+              bg-white/10
+              text-2xl
+              backdrop-blur-xl
+              transition
+              hover:bg-white/20
+              md:right-5
+            "
+          >
+            ›
+          </button>
+        </>
+      )}
+    </div>
+  );
 }

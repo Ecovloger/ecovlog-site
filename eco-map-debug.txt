@@ -1,0 +1,1619 @@
+===== PROJECT INFO =====
+CURRENT DIRECTORY:
+/Users/yaggy/Desktop/ecovlog-site
+
+===== PACKAGE.JSON =====
+{
+  "name": "ecovlog-site",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@sanity/icons": "^5.1.0",
+    "@sanity/image-url": "^2.1.1",
+    "@sanity/vision": "^5.31.1",
+    "@yandex/ymaps3-default-ui-theme": "^0.0.25",
+    "framer-motion": "^12.42.2",
+    "next": "16.2.10",
+    "next-sanity": "^13.1.3",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "sanity": "^5.31.1",
+    "styled-components": "^6.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@yandex/ymaps3-types": "^1.0.20315584",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.10",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
+
+===== RUSSIA REGION SELECTOR =====
+
+----- FILE: ./components/RussiaRegionSelector.tsx -----
+"use client";
+
+import * as React from "react";
+
+export type RussiaRegion = {
+  id: string;
+  name: string;
+  totalComplaints: number;
+  unresolvedComplaints: number;
+  unresolvedPercent: number;
+};
+
+export type RegionComplaint = {
+  region?: string | null;
+  status?: string | null;
+};
+
+type RussiaRegionSelectorProps = {
+  complaints: RegionComplaint[];
+  onSelectRegion: (region: RussiaRegion) => void;
+};
+
+type RussiaRegionsJson = Record<
+  string,
+  {
+    title: string;
+  }
+>;
+
+const REGION_COLORS = {
+  empty: "#b8d5c4",
+  low: "#72bc82",
+  moderate: "#a6cc72",
+  elevated: "#e2c865",
+  high: "#e69b5d",
+  critical: "#d86b63",
+  hover: "#2f8f65",
+} as const;
+
+function normalizeRegionName(value: string): string {
+  return value
+    .toLocaleLowerCase("ru-RU")
+    .replaceAll("ё", "е")
+    .replace(/[()]/g, " ")
+    .replace(/[—–-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isResolvedStatus(
+  status: string | null | undefined,
+): boolean {
+  if (!status) {
+    return false;
+  }
+
+  const normalizedStatus = status
+    .toLocaleLowerCase("ru-RU")
+    .replaceAll("_", "")
+    .replaceAll("-", "")
+    .replaceAll(" ", "");
+
+  return (
+    normalizedStatus === "resolved" ||
+    normalizedStatus === "closed" ||
+    normalizedStatus === "решено" ||
+    normalizedStatus === "устранено"
+  );
+}
+
+function getRegionColor(region: RussiaRegion): string {
+  if (region.totalComplaints === 0) {
+    return REGION_COLORS.empty;
+  }
+
+  if (region.unresolvedPercent <= 20) {
+    return REGION_COLORS.low;
+  }
+
+  if (region.unresolvedPercent <= 40) {
+    return REGION_COLORS.moderate;
+  }
+
+  if (region.unresolvedPercent <= 60) {
+    return REGION_COLORS.elevated;
+  }
+
+  if (region.unresolvedPercent <= 80) {
+    return REGION_COLORS.high;
+  }
+
+  return REGION_COLORS.critical;
+}
+
+function getComplaintWord(count: number): string {
+  const lastTwoDigits = count % 100;
+  const lastDigit = count % 10;
+
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 14) {
+    return "обращений";
+  }
+
+  if (lastDigit === 1) {
+    return "обращение";
+  }
+
+  if (lastDigit >= 2 && lastDigit <= 4) {
+    return "обращения";
+  }
+
+  return "обращений";
+}
+
+function createRegion(
+  id: string,
+  name: string,
+  complaints: RegionComplaint[],
+): RussiaRegion {
+  const normalizedName = normalizeRegionName(name);
+
+  const regionComplaints = complaints.filter(
+    (complaint) =>
+      complaint.region &&
+      normalizeRegionName(complaint.region) ===
+        normalizedName,
+  );
+
+  const unresolvedComplaints =
+    regionComplaints.filter(
+      (complaint) =>
+        !isResolvedStatus(complaint.status),
+    ).length;
+
+  const unresolvedPercent =
+    regionComplaints.length > 0
+      ? Math.round(
+          (unresolvedComplaints /
+            regionComplaints.length) *
+            100,
+        )
+      : 0;
+
+  return {
+    id,
+    name,
+    totalComplaints: regionComplaints.length,
+    unresolvedComplaints,
+    unresolvedPercent,
+  };
+}
+
+function getRegionShapes(
+  regionElement: SVGElement,
+): SVGElement[] {
+  if (
+    regionElement.matches(
+      "path, polygon, polyline, rect, circle, ellipse",
+    )
+  ) {
+    return [regionElement];
+  }
+
+  return Array.from(
+    regionElement.querySelectorAll<SVGElement>(
+      "path, polygon, polyline, rect, circle, ellipse",
+    ),
+  );
+}
+
+function paintRegion(
+  regionElement: SVGElement,
+  fill: string,
+  stroke: string,
+  strokeWidth: string,
+): void {
+  const shapes = getRegionShapes(regionElement);
+
+  const targets =
+    shapes.length > 0 ? shapes : [regionElement];
+
+  targets.forEach((shape) => {
+    shape.removeAttribute("fill");
+    shape.removeAttribute("stroke");
+
+    shape.style.setProperty(
+      "fill",
+      fill,
+      "important",
+    );
+
+    shape.style.setProperty(
+      "stroke",
+      stroke,
+      "important",
+    );
+
+    shape.style.setProperty(
+      "stroke-width",
+      strokeWidth,
+      "important",
+    );
+
+    shape.style.setProperty(
+      "stroke-linejoin",
+      "round",
+      "important",
+    );
+
+    shape.style.setProperty(
+      "vector-effect",
+      "non-scaling-stroke",
+      "important",
+    );
+
+    shape.style.setProperty(
+      "transition",
+      "fill 150ms ease, stroke 150ms ease, filter 150ms ease",
+      "important",
+    );
+  });
+}
+
+function MapLegend() {
+  const items = [
+    {
+      label: "Нет обращений",
+      color: REGION_COLORS.empty,
+    },
+    {
+      label: "До 20%",
+      color: REGION_COLORS.low,
+    },
+    {
+      label: "21–40%",
+      color: REGION_COLORS.moderate,
+    },
+    {
+      label: "41–60%",
+      color: REGION_COLORS.elevated,
+    },
+    {
+      label: "61–80%",
+      color: REGION_COLORS.high,
+    },
+    {
+      label: "81–100%",
+      color: REGION_COLORS.critical,
+    },
+  ];
+
+  return (
+    <div className="flex flex-wrap justify-center gap-x-5 gap-y-2">
+      {items.map((item) => (
+        <div
+          className="flex items-center gap-2"
+          key={item.label}
+        >
+          <span
+            className="h-3 w-3 rounded-full border border-black/10"
+            style={{
+              backgroundColor: item.color,
+            }}
+          />
+
+          <span className="text-xs text-neutral-600">
+            {item.label}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function RussiaRegionSelector({
+  complaints,
+  onSelectRegion,
+}: RussiaRegionSelectorProps) {
+  const mapContainerRef =
+    React.useRef<HTMLDivElement | null>(null);
+
+  const regionsRef =
+    React.useRef<Map<string, RussiaRegion>>(
+      new Map(),
+    );
+
+  const [regions, setRegions] = React.useState<
+    RussiaRegion[]
+  >([]);
+
+  const [hoveredRegion, setHoveredRegion] =
+    React.useState<RussiaRegion | null>(null);
+
+  const [selectedRegionId, setSelectedRegionId] =
+    React.useState("");
+
+  const [isLoading, setIsLoading] =
+    React.useState(true);
+
+  const [error, setError] =
+    React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadMap(): Promise<void> {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const [svgResponse, jsonResponse] =
+          await Promise.all([
+            fetch("/data/russia.svg", {
+              signal: controller.signal,
+              cache: "no-store",
+            }),
+            fetch("/data/russia.json", {
+              signal: controller.signal,
+              cache: "no-store",
+            }),
+          ]);
+
+        if (!svgResponse.ok) {
+          throw new Error(
+            `Не удалось загрузить russia.svg: ${svgResponse.status}.`,
+          );
+        }
+
+        if (!jsonResponse.ok) {
+          throw new Error(
+            `Не удалось загрузить russia.json: ${jsonResponse.status}.`,
+          );
+        }
+
+        const svgText = await svgResponse.text();
+
+        const regionsJson =
+          (await jsonResponse.json()) as RussiaRegionsJson;
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        const parsedRegions = Object.entries(
+          regionsJson,
+        )
+          .map(([id, value]) =>
+            createRegion(
+              id,
+              value.title,
+              complaints,
+            ),
+          )
+          .sort((firstRegion, secondRegion) =>
+            firstRegion.name.localeCompare(
+              secondRegion.name,
+              "ru-RU",
+            ),
+          );
+
+        const regionMap = new Map(
+          parsedRegions.map((region) => [
+            region.id,
+            region,
+          ]),
+        );
+
+        regionsRef.current = regionMap;
+        setRegions(parsedRegions);
+
+        const containerElement =
+          mapContainerRef.current;
+
+        if (!containerElement) {
+          return;
+        }
+
+        const parser = new DOMParser();
+
+        const svgDocument = parser.parseFromString(
+          svgText,
+          "image/svg+xml",
+        );
+
+        if (
+          svgDocument.querySelector("parsererror")
+        ) {
+          throw new Error(
+            "Файл russia.svg содержит некорректный SVG.",
+          );
+        }
+
+        svgDocument
+          .querySelectorAll("script")
+          .forEach((element) => element.remove());
+
+        const sourceSvg =
+          svgDocument.documentElement;
+
+        sourceSvg.removeAttribute("width");
+        sourceSvg.removeAttribute("height");
+
+        sourceSvg.setAttribute(
+          "preserveAspectRatio",
+          "xMidYMid meet",
+        );
+
+        sourceSvg.setAttribute(
+          "role",
+          "img",
+        );
+
+        sourceSvg.setAttribute(
+          "aria-label",
+          "Интерактивная карта регионов России",
+        );
+
+        sourceSvg.style.width = "100%";
+        sourceSvg.style.height = "100%";
+        sourceSvg.style.display = "block";
+        sourceSvg.style.overflow = "visible";
+        sourceSvg.style.background = "transparent";
+
+        const importedSvg = document.importNode(
+          sourceSvg,
+          true,
+        );
+
+        containerElement.replaceChildren(importedSvg);
+
+        const regionElements =
+          containerElement.querySelectorAll<SVGElement>(
+            ".russia-region",
+          );
+
+        if (regionElements.length === 0) {
+          throw new Error(
+            "В russia.svg не найдены элементы с классом russia-region.",
+          );
+        }
+
+        regionElements.forEach((regionElement) => {
+          const region =
+            regionMap.get(regionElement.id);
+
+          const baseColor = region
+            ? getRegionColor(region)
+            : REGION_COLORS.empty;
+
+          regionElement.dataset.baseColor =
+            baseColor;
+
+          regionElement.style.cursor = "pointer";
+          regionElement.style.outline = "none";
+
+          regionElement.setAttribute(
+            "tabindex",
+            "0",
+          );
+
+          regionElement.setAttribute(
+            "role",
+            "button",
+          );
+
+          if (region) {
+            regionElement.setAttribute(
+              "aria-label",
+              `${region.name}. ${region.totalComplaints} ${getComplaintWord(
+                region.totalComplaints,
+              )}.`,
+            );
+          }
+
+          getRegionShapes(regionElement).forEach(
+            (shape) => {
+              shape.style.cursor = "pointer";
+              shape.style.pointerEvents = "all";
+            },
+          );
+
+          paintRegion(
+            regionElement,
+            baseColor,
+            "#ffffff",
+            "1.5",
+          );
+        });
+
+        setIsLoading(false);
+      } catch (caughtError) {
+        if (
+          caughtError instanceof DOMException &&
+          caughtError.name === "AbortError"
+        ) {
+          return;
+        }
+
+        console.error(
+          "Russia map loading error:",
+          caughtError,
+        );
+
+        setError(
+          caughtError instanceof Error
+            ? caughtError.message
+            : "Не удалось загрузить карту России.",
+        );
+
+        setIsLoading(false);
+      }
+    }
+
+    void loadMap();
+
+    return () => {
+      controller.abort();
+    };
+  }, [complaints]);
+
+  React.useEffect(() => {
+    const containerElement =
+      mapContainerRef.current;
+
+    if (!containerElement || regions.length === 0) {
+      return;
+    }
+
+    function getRegionElement(
+      target: EventTarget | null,
+    ): SVGElement | null {
+      if (!(target instanceof Element)) {
+        return null;
+      }
+
+      const element =
+        target.closest<SVGElement>(
+          ".russia-region",
+        );
+
+      if (
+        !element ||
+        !containerElement.contains(element)
+      ) {
+        return null;
+      }
+
+      return element;
+    }
+
+    function getRegionByElement(
+      element: SVGElement,
+    ): RussiaRegion | null {
+      return (
+        regionsRef.current.get(element.id) ??
+        null
+      );
+    }
+
+    function highlightRegion(
+      element: SVGElement,
+    ): void {
+      paintRegion(
+        element,
+        REGION_COLORS.hover,
+        "#15583d",
+        "2.5",
+      );
+
+      element.style.filter =
+        "drop-shadow(0 5px 6px rgba(21, 88, 61, 0.28))";
+    }
+
+    function restoreRegion(
+      element: SVGElement,
+    ): void {
+      paintRegion(
+        element,
+        element.dataset.baseColor ??
+          REGION_COLORS.empty,
+        "#ffffff",
+        "1.5",
+      );
+
+      element.style.filter = "none";
+    }
+
+    function handlePointerOver(
+      event: PointerEvent,
+    ): void {
+      const element = getRegionElement(
+        event.target,
+      );
+
+      if (!element) {
+        return;
+      }
+
+      const region =
+        getRegionByElement(element);
+
+      if (!region) {
+        return;
+      }
+
+      setHoveredRegion(region);
+      highlightRegion(element);
+    }
+
+    function handlePointerOut(
+      event: PointerEvent,
+    ): void {
+      const element = getRegionElement(
+        event.target,
+      );
+
+      if (!element) {
+        return;
+      }
+
+      const relatedElement =
+        event.relatedTarget instanceof Element
+          ? event.relatedTarget.closest(
+              ".russia-region",
+            )
+          : null;
+
+      if (relatedElement === element) {
+        return;
+      }
+
+      setHoveredRegion(null);
+      restoreRegion(element);
+    }
+
+    function selectRegion(
+      element: SVGElement,
+    ): void {
+      const region =
+        getRegionByElement(element);
+
+      if (!region) {
+        return;
+      }
+
+      setSelectedRegionId(region.id);
+      onSelectRegion(region);
+    }
+
+    function handleClick(
+      event: MouseEvent,
+    ): void {
+      const element = getRegionElement(
+        event.target,
+      );
+
+      if (element) {
+        selectRegion(element);
+      }
+    }
+
+    function handleKeyDown(
+      event: KeyboardEvent,
+    ): void {
+      if (
+        event.key !== "Enter" &&
+        event.key !== " "
+      ) {
+        return;
+      }
+
+      const element = getRegionElement(
+        event.target,
+      );
+
+      if (!element) {
+        return;
+      }
+
+      event.preventDefault();
+      selectRegion(element);
+    }
+
+    containerElement.addEventListener(
+      "pointerover",
+      handlePointerOver,
+    );
+
+    containerElement.addEventListener(
+      "pointerout",
+      handlePointerOut,
+    );
+
+    containerElement.addEventListener(
+      "click",
+      handleClick,
+    );
+
+    containerElement.addEventListener(
+      "keydown",
+      handleKeyDown,
+    );
+
+    return () => {
+      containerElement.removeEventListener(
+        "pointerover",
+        handlePointerOver,
+      );
+
+      containerElement.removeEventListener(
+        "pointerout",
+        handlePointerOut,
+      );
+
+      containerElement.removeEventListener(
+        "click",
+        handleClick,
+      );
+
+      containerElement.removeEventListener(
+        "keydown",
+        handleKeyDown,
+      );
+    };
+  }, [onSelectRegion, regions]);
+
+  function handleSelectChange(
+    event: React.ChangeEvent<HTMLSelectElement>,
+  ): void {
+    const regionId = event.target.value;
+
+    setSelectedRegionId(regionId);
+
+    const region =
+      regionsRef.current.get(regionId);
+
+    if (region) {
+      onSelectRegion(region);
+    }
+  }
+
+  return (
+    <main className="min-h-[100dvh] bg-[#f2f6f3] px-4 py-7 text-neutral-950 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-[1480px]">
+        <header className="text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-700">
+            Народная Экокарта
+          </p>
+
+          <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
+            Выберите регион
+          </h1>
+
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-neutral-600 sm:text-base">
+            Нажмите на регион на карте или
+            выберите его из списка.
+          </p>
+        </header>
+
+        <div className="mx-auto mt-6 w-full max-w-xl">
+          <label
+            className="sr-only"
+            htmlFor="russia-region-selector"
+          >
+            Выберите регион
+          </label>
+
+          <select
+            className="h-13 w-full rounded-2xl border border-emerald-950/15 bg-white px-4 text-sm font-semibold shadow-sm outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10"
+            disabled={isLoading || Boolean(error)}
+            id="russia-region-selector"
+            onChange={handleSelectChange}
+            value={selectedRegionId}
+          >
+            <option value="">
+              Выберите регион
+            </option>
+
+            {regions.map((region) => (
+              <option
+                key={region.id}
+                value={region.id}
+              >
+                {region.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="mt-4 min-h-14 text-center">
+          {hoveredRegion ? (
+            <>
+              <p className="text-lg font-bold">
+                {hoveredRegion.name}
+              </p>
+
+              <p className="mt-1 text-sm text-neutral-600">
+                {hoveredRegion.totalComplaints >
+                0
+                  ? `${hoveredRegion.totalComplaints} ${getComplaintWord(
+                      hoveredRegion.totalComplaints,
+                    )}`
+                  : "Открыть карту региона"}
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-neutral-500">
+              Наведите указатель на регион
+            </p>
+          )}
+        </div>
+
+        <div className="relative mt-2 min-h-[420px] overflow-hidden rounded-[30px] border border-emerald-950/10 bg-white p-4 shadow-[0_22px_80px_rgba(28,74,51,0.10)] sm:min-h-[540px] sm:p-7 lg:min-h-[650px]">
+          <div
+            className="h-full min-h-[390px] w-full sm:min-h-[490px] lg:min-h-[590px]"
+            ref={mapContainerRef}
+          />
+
+          {isLoading ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-white">
+              <div className="text-center">
+                <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-emerald-900/10 border-t-emerald-600" />
+
+                <p className="mt-4 text-sm text-neutral-500">
+                  Загружаем карту России
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {error ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-white px-4">
+              <div className="max-w-lg text-center">
+                <h2 className="text-xl font-bold">
+                  Карта не загрузилась
+                </h2>
+
+                <p className="mt-3 text-sm leading-6 text-neutral-600">
+                  {error}
+                </p>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        {!error ? (
+          <div className="mt-5">
+            <p className="mb-3 text-center text-xs font-semibold uppercase tracking-[0.15em] text-neutral-500">
+              Доля нерешённых обращений
+            </p>
+
+            <MapLegend />
+          </div>
+        ) : null}
+      </div>
+    </main>
+  );
+}
+===== PUBLIC ECO MAP =====
+
+----- FILE: ./components/PublicEcoMap.tsx -----
+"use client";
+
+import Link from "next/link";
+import * as React from "react";
+import * as ReactDOM from "react-dom";
+
+import type {
+  LngLat,
+  YMapLocationRequest,
+} from "@yandex/ymaps3-types";
+import type { ReactifiedModule } from "@yandex/ymaps3-types/reactify/reactify";
+
+import RussiaRegionSelector, {
+  type RussiaRegion,
+} from "./RussiaRegionSelector";
+
+export type PublicComplaintStatus =
+  | "accepted"
+  | "inProgress"
+  | "resolved";
+
+export type PublicComplaint = {
+  _id: string;
+  complaintId?: string | null;
+  title?: string | null;
+  category?: string | null;
+  region?: string | null;
+  status: PublicComplaintStatus;
+  location: {
+    lat: number;
+    lng: number;
+  };
+};
+
+type PublicEcoMapProps = {
+  complaints: PublicComplaint[];
+};
+
+type ReactifiedYandexMaps = ReactifiedModule<
+  typeof ymaps3
+>;
+
+type RegionMapLocation = {
+  center: LngLat;
+  zoom: number;
+};
+
+const DEFAULT_REGION_LOCATION: RegionMapLocation = {
+  center: [90, 61],
+  zoom: 3,
+};
+
+const REGION_LOCATIONS: Record<
+  string,
+  RegionMapLocation
+> = {
+  AD: { center: [40.1, 44.5], zoom: 8 },
+  AL: { center: [86.9, 50.9], zoom: 6 },
+  ALT: { center: [83.8, 52.7], zoom: 6 },
+  AMU: { center: [128.1, 53.4], zoom: 5 },
+  ARK: { center: [43.3, 63.5], zoom: 5 },
+  AST: { center: [47.2, 47.2], zoom: 7 },
+  BA: { center: [56.3, 54.4], zoom: 6 },
+  BEL: { center: [36.6, 50.8], zoom: 7 },
+  BRY: { center: [33.4, 52.9], zoom: 7 },
+  BU: { center: [109.5, 53.5], zoom: 6 },
+  CE: { center: [45.7, 43.3], zoom: 8 },
+  CHE: { center: [60.4, 54.4], zoom: 6 },
+  CHU: { center: [172, 66.5], zoom: 4 },
+  CR: { center: [34.2, 45.2], zoom: 7 },
+  CU: { center: [47.1, 55.4], zoom: 8 },
+  DA: { center: [47.1, 42.3], zoom: 7 },
+  IN: { center: [44.8, 43.2], zoom: 9 },
+  IRK: { center: [105.3, 56.9], zoom: 5 },
+  IVA: { center: [41.2, 57], zoom: 8 },
+  KAM: { center: [159.5, 56.1], zoom: 5 },
+  KB: { center: [43.4, 43.5], zoom: 8 },
+  KC: { center: [41.7, 43.8], zoom: 8 },
+  KDA: { center: [39.1, 45.3], zoom: 7 },
+  KEM: { center: [87.1, 54.5], zoom: 7 },
+  KGD: { center: [21.1, 54.7], zoom: 8 },
+  KGN: { center: [64.4, 55.5], zoom: 7 },
+  KHA: { center: [135, 53.5], zoom: 5 },
+  KHM: { center: [69, 61], zoom: 5 },
+  KIR: { center: [49.7, 58.6], zoom: 6 },
+  KK: { center: [90, 53.4], zoom: 7 },
+  KL: { center: [44.3, 46.4], zoom: 7 },
+  KLU: { center: [35.4, 54.4], zoom: 8 },
+  KO: { center: [54, 64], zoom: 5 },
+  KOS: { center: [44, 58.4], zoom: 7 },
+  KR: { center: [33.4, 63.5], zoom: 6 },
+  KRS: { center: [36.2, 51.7], zoom: 8 },
+  KYA: { center: [96, 64], zoom: 4 },
+  LEN: { center: [31, 60.1], zoom: 7 },
+  LIP: { center: [39.1, 52.7], zoom: 8 },
+  MAG: { center: [151, 62.9], zoom: 5 },
+  ME: { center: [47.9, 56.6], zoom: 8 },
+  MO: { center: [44.4, 54.2], zoom: 8 },
+  MOS: { center: [37, 55.5], zoom: 7 },
+  MOW: { center: [37.6176, 55.7558], zoom: 10 },
+  MUR: { center: [34.7, 68], zoom: 6 },
+  NEN: { center: [53, 68], zoom: 5 },
+  NGR: { center: [32.8, 58.4], zoom: 7 },
+  NIZ: { center: [44.2, 56.2], zoom: 7 },
+  NVS: { center: [79.6, 55.4], zoom: 6 },
+  OMS: { center: [73.2, 56], zoom: 6 },
+  ORE: { center: [56, 51.8], zoom: 6 },
+  ORL: { center: [36.4, 52.8], zoom: 8 },
+  PER: { center: [56.5, 58.9], zoom: 6 },
+  PNZ: { center: [44.6, 53.2], zoom: 8 },
+  PRI: { center: [134, 45], zoom: 6 },
+  PSK: { center: [29.2, 57.3], zoom: 7 },
+  ROS: { center: [41.3, 47.8], zoom: 7 },
+  RYA: { center: [40.4, 54.4], zoom: 8 },
+  SA: { center: [127, 66], zoom: 4 },
+  SAK: { center: [143, 50.3], zoom: 5 },
+  SAM: { center: [50.2, 53.2], zoom: 7 },
+  SAR: { center: [46.7, 51.5], zoom: 7 },
+  SE: { center: [44.3, 43.2], zoom: 8 },
+  SMO: { center: [32.9, 54.8], zoom: 7 },
+  SPE: { center: [30.3158, 59.9391], zoom: 10 },
+  STA: { center: [43.9, 44.8], zoom: 7 },
+  SVE: { center: [61, 58.8], zoom: 6 },
+  TA: { center: [50.9, 55.4], zoom: 7 },
+  TAM: { center: [41.4, 52.7], zoom: 8 },
+  TOM: { center: [82.1, 58.7], zoom: 6 },
+  TUL: { center: [37.6, 54.2], zoom: 8 },
+  TVE: { center: [34.8, 57.1], zoom: 7 },
+  TY: { center: [94.4, 51.7], zoom: 6 },
+  TYU: { center: [69, 57.3], zoom: 6 },
+  UD: { center: [52.8, 57.3], zoom: 7 },
+  ULY: { center: [48.2, 54.3], zoom: 7 },
+  VGG: { center: [44.4, 49.5], zoom: 7 },
+  VLA: { center: [40.6, 56], zoom: 8 },
+  VLG: { center: [40, 60], zoom: 6 },
+  VOR: { center: [40.8, 51], zoom: 7 },
+  YAN: { center: [75, 66], zoom: 5 },
+  YAR: { center: [39.1, 57.6], zoom: 7 },
+  YEV: { center: [132.9, 48.6], zoom: 7 },
+  ZAB: { center: [115, 52], zoom: 5 },
+};
+
+function normalizeRegionName(value: string): string {
+  return value
+    .toLocaleLowerCase("ru-RU")
+    .replaceAll("ё", "е")
+    .replace(/[()]/g, " ")
+    .replace(/[—–-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function regionsAreEqual(
+  firstRegion: string | null | undefined,
+  secondRegion: string,
+): boolean {
+  if (!firstRegion) {
+    return false;
+  }
+
+  return (
+    normalizeRegionName(firstRegion) ===
+    normalizeRegionName(secondRegion)
+  );
+}
+
+function getBounds(
+  coordinates: LngLat[],
+): [LngLat, LngLat] {
+  const longitudes = coordinates.map(
+    ([longitude]) => longitude,
+  );
+
+  const latitudes = coordinates.map(
+    ([, latitude]) => latitude,
+  );
+
+  const minimumLongitude = Math.min(
+    ...longitudes,
+  );
+
+  const maximumLongitude = Math.max(
+    ...longitudes,
+  );
+
+  const minimumLatitude = Math.min(
+    ...latitudes,
+  );
+
+  const maximumLatitude = Math.max(
+    ...latitudes,
+  );
+
+  const longitudePadding = Math.max(
+    (maximumLongitude - minimumLongitude) *
+      0.2,
+    0.2,
+  );
+
+  const latitudePadding = Math.max(
+    (maximumLatitude - minimumLatitude) *
+      0.2,
+    0.15,
+  );
+
+  return [
+    [
+      minimumLongitude - longitudePadding,
+      minimumLatitude - latitudePadding,
+    ],
+    [
+      maximumLongitude + longitudePadding,
+      maximumLatitude + latitudePadding,
+    ],
+  ];
+}
+
+function getMapLocation(
+  region: RussiaRegion,
+  complaints: PublicComplaint[],
+): YMapLocationRequest {
+  const coordinates: LngLat[] = complaints.map(
+    (complaint) => [
+      complaint.location.lng,
+      complaint.location.lat,
+    ],
+  );
+
+  if (coordinates.length === 1) {
+    return {
+      center: coordinates[0],
+      zoom: 11,
+    };
+  }
+
+  if (coordinates.length > 1) {
+    return {
+      bounds: getBounds(coordinates),
+    };
+  }
+
+  return (
+    REGION_LOCATIONS[region.id] ??
+    DEFAULT_REGION_LOCATION
+  );
+}
+
+function waitForYandexMaps(
+  timeout = 20000,
+): Promise<typeof ymaps3> {
+  return new Promise((resolve, reject) => {
+    const startedAt = Date.now();
+
+    function checkApi(): void {
+      if (
+        typeof window !== "undefined" &&
+        window.ymaps3
+      ) {
+        resolve(window.ymaps3);
+        return;
+      }
+
+      if (Date.now() - startedAt >= timeout) {
+        reject(
+          new Error(
+            "API Яндекс Карт не загрузился.",
+          ),
+        );
+
+        return;
+      }
+
+      window.setTimeout(checkApi, 100);
+    }
+
+    checkApi();
+  });
+}
+
+function getMarkerClasses(
+  status: PublicComplaintStatus,
+): string {
+  if (status === "resolved") {
+    return "border-emerald-200 bg-emerald-500 shadow-[0_8px_25px_rgba(16,185,129,0.45)]";
+  }
+
+  if (status === "inProgress") {
+    return "border-amber-100 bg-amber-400 shadow-[0_8px_25px_rgba(251,191,36,0.45)]";
+  }
+
+  return "border-red-100 bg-red-500 shadow-[0_8px_25px_rgba(239,68,68,0.45)]";
+}
+
+function ComplaintMarker({
+  complaint,
+}: {
+  complaint: PublicComplaint;
+}) {
+  const title =
+    complaint.title?.trim() ||
+    complaint.category?.trim() ||
+    "Экологическое нарушение";
+
+  return (
+    <button
+      aria-label={title}
+      className={`
+        group
+        relative
+        flex
+        h-9
+        w-9
+        -translate-x-1/2
+        -translate-y-full
+        items-center
+        justify-center
+        rounded-full
+        border-2
+        transition
+        hover:scale-110
+        ${getMarkerClasses(complaint.status)}
+      `}
+      title={title}
+      type="button"
+    >
+      <span className="h-3 w-3 rounded-full border-2 border-white bg-white/30" />
+
+      <span className="pointer-events-none absolute bottom-[calc(100%+10px)] left-1/2 hidden w-max max-w-[240px] -translate-x-1/2 rounded-xl bg-neutral-950/90 px-3 py-2 text-xs font-medium text-white shadow-xl group-hover:block">
+        {title}
+      </span>
+    </button>
+  );
+}
+
+function getComplaintWord(count: number): string {
+  const lastTwoDigits = count % 100;
+  const lastDigit = count % 10;
+
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 14) {
+    return "обращений";
+  }
+
+  if (lastDigit === 1) {
+    return "обращение";
+  }
+
+  if (lastDigit >= 2 && lastDigit <= 4) {
+    return "обращения";
+  }
+
+  return "обращений";
+}
+
+export default function PublicEcoMap({
+  complaints,
+}: PublicEcoMapProps) {
+  const [selectedRegion, setSelectedRegion] =
+    React.useState<RussiaRegion | null>(null);
+
+  const [maps, setMaps] =
+    React.useState<ReactifiedYandexMaps | null>(
+      null,
+    );
+
+  const [error, setError] =
+    React.useState<string | null>(null);
+
+  const selectedComplaints = React.useMemo(() => {
+    if (!selectedRegion) {
+      return [];
+    }
+
+    return complaints.filter((complaint) =>
+      regionsAreEqual(
+        complaint.region,
+        selectedRegion.name,
+      ),
+    );
+  }, [complaints, selectedRegion]);
+
+  React.useEffect(() => {
+    if (!selectedRegion) {
+      return;
+    }
+
+    const activeRegion: RussiaRegion =
+      selectedRegion;
+
+    let isCancelled = false;
+
+    async function initializeMap(): Promise<void> {
+      try {
+        setMaps(null);
+        setError(null);
+
+        const ymaps = await waitForYandexMaps();
+
+        const [ymaps3React] = await Promise.all([
+          ymaps.import(
+            "@yandex/ymaps3-reactify",
+          ),
+          ymaps.ready,
+        ]);
+
+        const reactify =
+          ymaps3React.reactify.bindTo(
+            React,
+            ReactDOM,
+          );
+
+        const reactifiedMaps =
+          reactify.module(ymaps);
+
+        if (isCancelled) {
+          return;
+        }
+
+        setMaps(reactifiedMaps);
+      } catch (caughtError) {
+        console.error(
+          "Yandex Maps initialization error:",
+          caughtError,
+        );
+
+        if (isCancelled) {
+          return;
+        }
+
+        setError(
+          caughtError instanceof Error
+            ? caughtError.message
+            : `Не удалось открыть ${activeRegion.name}.`,
+        );
+      }
+    }
+
+    void initializeMap();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedRegion]);
+
+  function handleBackToRegions(): void {
+    setSelectedRegion(null);
+    setMaps(null);
+    setError(null);
+  }
+
+  if (!selectedRegion) {
+    return (
+      <RussiaRegionSelector
+        complaints={complaints}
+        onSelectRegion={setSelectedRegion}
+      />
+    );
+  }
+
+  const mapLocation = getMapLocation(
+    selectedRegion,
+    selectedComplaints,
+  );
+
+  if (error) {
+    return (
+      <main className="flex min-h-[100dvh] items-center justify-center bg-neutral-950 px-4 text-white">
+        <div className="max-w-lg text-center">
+          <h1 className="text-2xl font-bold">
+            Карта временно недоступна
+          </h1>
+
+          <p className="mt-3 text-sm text-white/60">
+            {error}
+          </p>
+
+          <button
+            className="mt-6 rounded-full border border-white/20 px-6 py-3 text-sm font-semibold"
+            onClick={handleBackToRegions}
+            type="button"
+          >
+            Выбрать другой регион
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  if (!maps) {
+    return (
+      <main className="flex min-h-[100dvh] items-center justify-center bg-neutral-950 text-white">
+        <div className="text-center">
+          <div className="mx-auto h-11 w-11 animate-spin rounded-full border-4 border-white/15 border-t-white" />
+
+          <p className="mt-4 text-sm text-white/60">
+            Загружаем {selectedRegion.name}
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  const {
+    YMap,
+    YMapDefaultSchemeLayer,
+    YMapDefaultFeaturesLayer,
+    YMapMarker,
+  } = maps;
+
+  return (
+    <main className="h-[100dvh] overflow-hidden bg-neutral-950 text-white">
+      <div className="relative h-full w-full">
+        <YMap
+          key={selectedRegion.id}
+          location={mapLocation}
+          showScaleInCopyrights
+        >
+          <YMapDefaultSchemeLayer />
+          <YMapDefaultFeaturesLayer />
+
+          {selectedComplaints.map((complaint) => (
+            <YMapMarker
+              coordinates={[
+                complaint.location.lng,
+                complaint.location.lat,
+              ]}
+              key={complaint._id}
+            >
+              <ComplaintMarker
+                complaint={complaint}
+              />
+            </YMapMarker>
+          ))}
+        </YMap>
+
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 p-3 md:p-5">
+          <div className="pointer-events-auto mx-auto flex max-w-[1400px] items-center justify-between gap-3 rounded-[24px] border border-white/10 bg-neutral-950/80 px-3 py-3 shadow-2xl backdrop-blur-xl sm:px-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <button
+                aria-label="Выбрать другой регион"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-lg transition hover:bg-white/15"
+                onClick={handleBackToRegions}
+                type="button"
+              >
+                ←
+              </button>
+
+              <div className="min-w-0">
+                <h1 className="truncate text-base font-bold sm:text-xl">
+                  {selectedRegion.name}
+                </h1>
+
+                <p className="text-xs text-white/55">
+                  {selectedComplaints.length}{" "}
+                  {getComplaintWord(
+                    selectedComplaints.length,
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <Link
+              className="shrink-0 rounded-full bg-white px-4 py-2.5 text-xs font-bold text-neutral-950 transition hover:bg-white/90 sm:px-5 sm:text-sm"
+              href="/map/report"
+            >
+              Сообщить о нарушении
+            </Link>
+          </div>
+
+          <div className="pointer-events-auto mx-auto mt-3 flex w-fit max-w-full items-center gap-3 rounded-2xl border border-white/10 bg-neutral-950/80 px-4 py-2.5 shadow-xl backdrop-blur-xl">
+            <p className="text-xs text-white/70 sm:text-sm">
+              Не нашли нужную точку?
+            </p>
+
+            <Link
+              className="shrink-0 text-xs font-bold text-emerald-300 underline decoration-emerald-300/40 underline-offset-4 sm:text-sm"
+              href="/map/report"
+            >
+              Сообщите о нарушении
+            </Link>
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
+===== MAP-RELATED FILES =====
+./components/EcoMap.tsx
+./components/PublicEcoMap.tsx
+./public/data/russia.svg
+./public/data/russia.json
+
+===== RUSSIA JSON CONTENT =====
+
+----- FILE: ./public/data/russia.json -----
+{"NEN":{"title":"\u041d\u0435\u043d\u0435\u0446\u043a\u0438\u0439 \u0430\u0432\u0442\u043e\u043d\u043e\u043c\u043d\u044b\u0439 \u043e\u043a\u0440\u0443\u0433"},"BA":{"title":"\u0420\u0435\u0441\u043f\u0443\u0431\u043b\u0438\u043a\u0430 \u0411\u0430\u0448\u043a\u043e\u0440\u0442\u043e\u0441\u0442\u0430\u043d"},"BEL":{"title":"\u0411\u0435\u043b\u0433\u043e\u0440\u043e\u0434\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"MUR":{"title":"\u041c\u0443\u0440\u043c\u0430\u043d\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"RYA":{"title":"\u0420\u044f\u0437\u0430\u043d\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"ZAB":{"title":"\u0417\u0430\u0431\u0430\u0439\u043a\u0430\u043b\u044c\u0441\u043a\u0438\u0439 \u043a\u0440\u0430\u0439"},"PER":{"title":"\u041f\u0435\u0440\u043c\u0441\u043a\u0438\u0439 \u043a\u0440\u0430\u0439"},"DA":{"title":"\u0420\u0435\u0441\u043f\u0443\u0431\u043b\u0438\u043a\u0430 \u0414\u0430\u0433\u0435\u0441\u0442\u0430\u043d"},"SMO":{"title":"\u0421\u043c\u043e\u043b\u0435\u043d\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"BU":{"title":"\u0420\u0435\u0441\u043f\u0443\u0431\u043b\u0438\u043a\u0430 \u0411\u0443\u0440\u044f\u0442\u0438\u044f"},"TYU":{"title":"\u0422\u044e\u043c\u0435\u043d\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"LIP":{"title":"\u041b\u0438\u043f\u0435\u0446\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"LEN":{"title":"\u041b\u0435\u043d\u0438\u043d\u0433\u0440\u0430\u0434\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"NGR":{"title":"\u041d\u043e\u0432\u0433\u043e\u0440\u043e\u0434\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"TOM":{"title":"\u0422\u043e\u043c\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"KHM":{"title":"\u0425\u0430\u043d\u0442\u044b-\u041c\u0430\u043d\u0441\u0438\u0439\u0441\u043a\u0438\u0439 \u0430\u0432\u0442\u043e\u043d\u043e\u043c\u043d\u044b\u0439 \u043e\u043a\u0440\u0443\u0433 \u2014 \u042e\u0433\u0440\u0430"},"KOS":{"title":"\u041a\u043e\u0441\u0442\u0440\u043e\u043c\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"YEV":{"title":"\u0415\u0432\u0440\u0435\u0439\u0441\u043a\u0430\u044f \u0430\u0432\u0442\u043e\u043d\u043e\u043c\u043d\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"STA":{"title":"\u0421\u0442\u0430\u0432\u0440\u043e\u043f\u043e\u043b\u044c\u0441\u043a\u0438\u0439 \u043a\u0440\u0430\u0439"},"SAK":{"title":"\u0421\u0430\u0445\u0430\u043b\u0438\u043d\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"OMS":{"title":"\u041e\u043c\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"SAM":{"title":"\u0421\u0430\u043c\u0430\u0440\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"TY":{"title":"\u0420\u0435\u0441\u043f\u0443\u0431\u043b\u0438\u043a\u0430 \u0422\u044b\u0432\u0430"},"VLA":{"title":"\u0412\u043b\u0430\u0434\u0438\u043c\u0438\u0440\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"KYA":{"title":"\u041a\u0440\u0430\u0441\u043d\u043e\u044f\u0440\u0441\u043a\u0438\u0439 \u043a\u0440\u0430\u0439"},"PRI":{"title":"\u041f\u0440\u0438\u043c\u043e\u0440\u0441\u043a\u0438\u0439 \u043a\u0440\u0430\u0439"},"KDA":{"title":"\u041a\u0440\u0430\u0441\u043d\u043e\u0434\u0430\u0440\u0441\u043a\u0438\u0439 \u043a\u0440\u0430\u0439"},"VLG":{"title":"\u0412\u043e\u043b\u043e\u0433\u043e\u0434\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"PNZ":{"title":"\u041f\u0435\u043d\u0437\u0435\u043d\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"TAM":{"title":"\u0422\u0430\u043c\u0431\u043e\u0432\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"ULY":{"title":"\u0423\u043b\u044c\u044f\u043d\u043e\u0432\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"TVE":{"title":"\u0422\u0432\u0435\u0440\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"KHA":{"title":"\u0425\u0430\u0431\u0430\u0440\u043e\u0432\u0441\u043a\u0438\u0439 \u043a\u0440\u0430\u0439"},"MAG":{"title":"\u041c\u0430\u0433\u0430\u0434\u0430\u043d\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"ROS":{"title":"\u0420\u043e\u0441\u0442\u043e\u0432\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"AMU":{"title":"\u0410\u043c\u0443\u0440\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"SPE":{"title":"\u0421\u0430\u043d\u043a\u0442-\u041f\u0435\u0442\u0435\u0440\u0431\u0443\u0440\u0433"},"TA":{"title":"\u0420\u0435\u0441\u043f\u0443\u0431\u043b\u0438\u043a\u0430 \u0422\u0430\u0442\u0430\u0440\u0441\u0442\u0430\u043d (\u0422\u0430\u0442\u0430\u0440\u0441\u0442\u0430\u043d)"},"ME":{"title":"\u0420\u0435\u0441\u043f\u0443\u0431\u043b\u0438\u043a\u0430 \u041c\u0430\u0440\u0438\u0439 \u042d\u043b"},"SVE":{"title":"\u0421\u0432\u0435\u0440\u0434\u043b\u043e\u0432\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"AD":{"title":"\u0420\u0435\u0441\u043f\u0443\u0431\u043b\u0438\u043a\u0430 \u0410\u0434\u044b\u0433\u0435\u044f (\u0410\u0434\u044b\u0433\u0435\u044f)"},"PSK":{"title":"\u041f\u0441\u043a\u043e\u0432\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"KRS":{"title":"\u041a\u0443\u0440\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"VGG":{"title":"\u0412\u043e\u043b\u0433\u043e\u0433\u0440\u0430\u0434\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"AL":{"title":"\u0420\u0435\u0441\u043f\u0443\u0431\u043b\u0438\u043a\u0430 \u0410\u043b\u0442\u0430\u0439"},"CE":{"title":"\u0427\u0435\u0447\u0435\u043d\u0441\u043a\u0430\u044f \u0420\u0435\u0441\u043f\u0443\u0431\u043b\u0438\u043a\u0430"},"YAR":{"title":"\u042f\u0440\u043e\u0441\u043b\u0430\u0432\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"KLU":{"title":"\u041a\u0430\u043b\u0443\u0436\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"SAR":{"title":"\u0421\u0430\u0440\u0430\u0442\u043e\u0432\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"IRK":{"title":"\u0418\u0440\u043a\u0443\u0442\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"MOW":{"title":"\u041c\u043e\u0441\u043a\u0432\u0430"},"IN":{"title":"\u0420\u0435\u0441\u043f\u0443\u0431\u043b\u0438\u043a\u0430 \u0418\u043d\u0433\u0443\u0448\u0435\u0442\u0438\u044f"},"CHE":{"title":"\u0427\u0435\u043b\u044f\u0431\u0438\u043d\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"MOS":{"title":"\u041c\u043e\u0441\u043a\u043e\u0432\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"ALT":{"title":"\u0410\u043b\u0442\u0430\u0439\u0441\u043a\u0438\u0439 \u043a\u0440\u0430\u0439"},"CU":{"title":"\u0427\u0443\u0432\u0430\u0448\u0441\u043a\u0430\u044f \u0420\u0435\u0441\u043f\u0443\u0431\u043b\u0438\u043a\u0430 \u2014 \u0427\u0443\u0432\u0430\u0448\u0438\u044f"},"CHU":{"title":"\u0427\u0443\u043a\u043e\u0442\u0441\u043a\u0438\u0439 \u0430\u0432\u0442\u043e\u043d\u043e\u043c\u043d\u044b\u0439 \u043e\u043a\u0440\u0443\u0433"},"KC":{"title":"\u041a\u0430\u0440\u0430\u0447\u0430\u0435\u0432\u043e-\u0427\u0435\u0440\u043a\u0435\u0441\u0441\u043a\u0430\u044f \u0420\u0435\u0441\u043f\u0443\u0431\u043b\u0438\u043a\u0430"},"KB":{"title":"\u041a\u0430\u0431\u0430\u0440\u0434\u0438\u043d\u043e-\u0411\u0430\u043b\u043a\u0430\u0440\u0441\u043a\u0430\u044f \u0420\u0435\u0441\u043f\u0443\u0431\u043b\u0438\u043a\u0430"},"KEM":{"title":"\u041a\u0435\u043c\u0435\u0440\u043e\u0432\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"ORE":{"title":"\u041e\u0440\u0435\u043d\u0431\u0443\u0440\u0433\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"NVS":{"title":"\u041d\u043e\u0432\u043e\u0441\u0438\u0431\u0438\u0440\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"IVA":{"title":"\u0418\u0432\u0430\u043d\u043e\u0432\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"BRY":{"title":"\u0411\u0440\u044f\u043d\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"KK":{"title":"\u0420\u0435\u0441\u043f\u0443\u0431\u043b\u0438\u043a\u0430 \u0425\u0430\u043a\u0430\u0441\u0438\u044f"},"KIR":{"title":"\u041a\u0438\u0440\u043e\u0432\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"MO":{"title":"\u0420\u0435\u0441\u043f\u0443\u0431\u043b\u0438\u043a\u0430 \u041c\u043e\u0440\u0434\u043e\u0432\u0438\u044f"},"AST":{"title":"\u0410\u0441\u0442\u0440\u0430\u0445\u0430\u043d\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"KO":{"title":"\u0420\u0435\u0441\u043f\u0443\u0431\u043b\u0438\u043a\u0430 \u041a\u043e\u043c\u0438"},"KAM":{"title":"\u041a\u0430\u043c\u0447\u0430\u0442\u0441\u043a\u0438\u0439 \u043a\u0440\u0430\u0439"},"KL":{"title":"\u0420\u0435\u0441\u043f\u0443\u0431\u043b\u0438\u043a\u0430 \u041a\u0430\u043b\u043c\u044b\u043a\u0438\u044f"},"NIZ":{"title":"\u041d\u0438\u0436\u0435\u0433\u043e\u0440\u043e\u0434\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"KR":{"title":"\u0420\u0435\u0441\u043f\u0443\u0431\u043b\u0438\u043a\u0430 \u041a\u0430\u0440\u0435\u043b\u0438\u044f"},"ORL":{"title":"\u041e\u0440\u043b\u043e\u0432\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"YAN":{"title":"\u042f\u043c\u0430\u043b\u043e-\u041d\u0435\u043d\u0435\u0446\u043a\u0438\u0439 \u0430\u0432\u0442\u043e\u043d\u043e\u043c\u043d\u044b\u0439 \u043e\u043a\u0440\u0443\u0433"},"TUL":{"title":"\u0422\u0443\u043b\u044c\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"KGD":{"title":"\u041a\u0430\u043b\u0438\u043d\u0438\u043d\u0433\u0440\u0430\u0434\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"VOR":{"title":"\u0412\u043e\u0440\u043e\u043d\u0435\u0436\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"UD":{"title":"\u0423\u0434\u043c\u0443\u0440\u0442\u0441\u043a\u0430\u044f \u0420\u0435\u0441\u043f\u0443\u0431\u043b\u0438\u043a\u0430"},"SA":{"title":"\u0420\u0435\u0441\u043f\u0443\u0431\u043b\u0438\u043a\u0430 \u0421\u0430\u0445\u0430 (\u042f\u043a\u0443\u0442\u0438\u044f)"},"ARK":{"title":"\u0410\u0440\u0445\u0430\u043d\u0433\u0435\u043b\u044c\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"SE":{"title":"\u0420\u0435\u0441\u043f\u0443\u0431\u043b\u0438\u043a\u0430 \u0421\u0435\u0432\u0435\u0440\u043d\u0430\u044f \u041e\u0441\u0435\u0442\u0438\u044f \u2014 \u0410\u043b\u0430\u043d\u0438\u044f"},"KGN":{"title":"\u041a\u0443\u0440\u0433\u0430\u043d\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c"},"CR":{"title":"\u0420\u0435\u0441\u043f\u0443\u0431\u043b\u0438\u043a\u0430 \u041a\u0440\u044b\u043c"}}
+
+===== RUSSIA SVG STRUCTURE =====
+
+----- FILE: ./public/data/russia.svg -----
+Размер файла:
+   56795 ./public/data/russia.svg
+
+Начало SVG:
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg version="1.1" id="nasha-russia" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+   viewBox="0 0 1002 568" style="enable-background:new 0 0 1002 568;" xml:space="preserve">
+<path class="russia-region" id="RU-MOW" d="M129.3,246.9l-0.7-1.3l-0.8,1.1l-1.2,0.6l-0.4,2l-2.8-1.2l-1.3,1.3l-1.8-2l-0.5,2.1l-1.7,0.5
+  l0.5,2.4l1.4-1.1l1.1,1.3l2.3-0.1l0.6-1.4l0.8,1.3l1.6-0.9l1.6,1.1l2.5-0.2l0.4-1.6l-0.8-2.5l0.3-1
+  C129.8,247.4,129.7,247.2,129.3,246.9L129.3,246.9z"/>
+<path class="russia-region" id="RU-SPE" d="M135.4,169.3l-3-1l-3.9,1l-1,3.9l1,3l3.9,2l3-2l2-3L135.4,169.3z"/>
+<path class="russia-region" id="RU-NEN" d="M304.1,153.5h-4.9l-3.9,3.9l1,3.9l4.9,1h1l1-1h1l0,0l1-1v1l0,0l-1,1l0,0h1l1-1v-3.9L304.1,153.5z
+   M349.5,176.2l2,1v1v1v1l3,2l2-3l-1-3l-1-3l0,0v-2l-1-2h-2v2h-1h-1V176.2L349.5,176.2z M321.9,175.2l-3-1l-3.9-1l-4.9,1l0,0l1,1v2
+  h-2l-1-1v-1l1-1l-3-1h-3h-1l-1-1l-5.9,1l-5.9-1l-1-1v-1v1l0,0v1h-1v1v2l0,0l-1-2l-2-1l-1-1l-3.9,3l-3.9,3.9l-4.9-2l-3.9-3l1-3l1-2
+  l-1-2l-1-2l3.9-2l3-1l4.9,3l1-1l1-1v-1h1v-3v-3l-3-3.9l-3.9-3l-1-3l-1-1v3v4.9l-5.9,4.9l-4.9,3.9v3v3l-3.9,3l-2,2v1v2l3.9,5.9l3,5.9
+  l1,2l1,1v1h2l0,0v-1l2-1h2l2,1l2,2l0,0h6.9l7.9,1l2-1l1-1l1,1v1l2-1h2l4.9,3.9l5.9,4.9l29.6,17.8l1,1l1,1l5.9-1l6.9-2v-1l1-2l1,1h1
+  l2-1l2-1l2-1l2-1l1-1h1h1l2,1l2-3v-2l-1-1l-2-3l1-1l1-1l2-2v-2l-3-4.9l-3.9-3.9l-4.9-3.9l-1-1l-1-1l-1,1l-1,1l0,0l-1-1h-1l-1,1v5.9
+  l-1,5.9l0,0l0,0l-1-1h-1l-2,1l-2-1h-1l-1,2l-3,1l-1-2l1-2l2-1h1v-2l-1-2h1l-6.9-1l-5.9,1l-2-3l-5.9-2l-3.9,1v1l-1,1l-1-2h-2l-1,1h-1
+  l0,0l1-1v-1v-1l-2-1h-2l1-1v-1h1h1l2,1l1-2l1-2h1l1-1v-1h-1h2L321.9,175.2L321.9,175.2L321.9,175.2z"/>
+<path class="russia-region" id="RU-YAR" d="M156.1,225.5l1-1l-3-1l-1,1l1,1H156.1z M163,226.5h-1l-1,1l-3-2v3.9l-1,3l-2,2v-1v-1v-1l-3,1l-1-1
+  l1-1h1l-1-5.9h-2l-2,1l1,1l-1,1l-1,1h-2v1v1l-1,2v3v2l1,1l-3,2l-3,3v1v1v2l3,3l3-1l5.9-2l4.9,2l5.9-3.9l6.9-3v-1l1-2l-3.9-4.9v-4.9
+  L163,226.5L163,226.5z"/>
+<path class="russia-region" id="RU-CHE" d="M254.8,339.9v3l-2,3.9l1,1l1,1h-2h-1h-1l-1,1h-1l-2-1l-1,2l-1,1h-1v-1v-1l-1-1l-2,1v-2l1-1l-3-3
+  l-3,1l-1,1v1h-1v1l2,6.9v1h2h2v1l1,1h5.9h4.9l-2,3l-3,3l-1,2l-1-1l-1-1l-1,1h-2h-1h-1l-3,4.9l-3,4.9l-1,1l-2,2v1v1h-1v1l1,1v1v1h1
+  l1-1l3,2l3,2l-2,2l-2,2h1l3.9,1l3.9-1l1-3v-2l1-1h1l1-1h1l3.9,2l3,2l-2-3.9l-2-3l2-2h2l-2-1l-2-2h1l1-1l1-1l-1-1h1h1h1h1v1l1,1l3,1
+  l2,1v1l1,1l1-1h3l3,1v-1l0,0v-1l-1-1l2-2v-2l-3-2l-3.9-3l2-2l1-1l1-2v-1h1l1-1h1h1l1-3.9v-4.9l-1-2v-1l-1-1l-2-1l0,0h-1l-1,1l-4.9-3
+  l-4.9-3.9v-1h-1h-1L254.8,339.9L254.8,339.9z"/>
+<path class="russia-region" id="RU-ULY" d="M177.8,312.3l-1-2l-3.9-1v-2l-3-2l-2-3l-3.9,5.9l-2-1h-3.9l1,3.9l-1,3.9l1,2v2l-3,3.9l-3,2l3,4.9
+  h5.9l1,1v1l2-3l2-4.9h1h2l2-1h1l2,1h2l2,2l3,2v-1h1h1h1l2-3l1-2l-2-3v-3l-1-2h-3h-2L177.8,312.3L177.8,312.3z"/>
+<path class="russia-region" id="RU-TYU" d="M336.7,332.1l-3.9,1l-1,1v1h-2l-2-1h-2h-3l-1-1h-1l-2,1l-1,2h-3l-3-1v2l-1,1v2v2l-2,1h-2h-2l0,0v-1
+  h-3l-2,1l-2,3.9l-1,4.9v1h1l-1,1h-1h-1l-1,3v3l2,1l2,1v2v2h1h2v1l1,1l1-1l1,1l2,3l1,3l1,1l2,1l0,0h1l1,3l2,3.9l0,0h1v-1l1,1v1h1l2,1
+  l2,2l1,2h2l1-1v-2h1l2-1l-1-1v-1h1h1v-1l-1-1l1-1l2-1v-1l1-1l0,0h1v-1v-1l1-1h1v-1v-1v-1l2,1l3-1l-1-6.9v-1h-1h-2l-1-1l1-1l2-1v-3
+  v-3l3-2l3-2l1,1l1,2l-1,1v2h2l2,1l2,1l3,2l1-1h2l6.9,2l7.9-3l-2-2h-3l-1-1l-1-1l-3-2l-2-1v-2l1-3h-2l-2-2l1-1v-1l-1-1h-1l-1-3.9
+  l-2-3l-1-1h-1l-1-1l-3-1h-1h-2l-1-1l-1-2h-2l-1,1L336.7,332.1L336.7,332.1z"/>
+<path class="russia-region" id="RU-TUL" d="M113.5,258.1h-1.6l-0.3,1l-1.1,1h-0.8l-0.5-1l-2.4-1l-2.3-1h-0.3l-0.4,1h-2l-1.7,1l-0.5,1l-0.7,1
+  l0.7,4.9l2.2,3.9l1.1,1l1,1l-0.2,2l0.1,3l1.7,2l1.3,1h1.9l0.4-1l0.8-1h0.8h0.8l1.3-1h1.6l4.8-7.9l-0.1-2l1.5-2h1l-1-1v-1v-2v-1h-1.5
+  l-2.1-3l0,0h-1.2l-1.4,1L113.5,258.1L113.5,258.1z"/>
+<path class="russia-region" id="RU-SVE" d="M303.1,283.7l-3-2l-3-2v-2v-1l-1-1v-1l-2,1v1l-3,3.9l-2,3.9v1v1l-4.9,4.9l-4.9,4.9l-2,1l-2,1l-3,3
+  l2,4.9l-2,3v3v1l0,0l-3,3l-4.9,1l-1,3v2h-3l-2-2l-2,2l-2,3h-4.9l-2,1l0,0v1l-1,3l-2,2v1v2h1l1,1l3.9,2l3,2h1l0,0l1-1h1h1v1l4.9,3.9
+  l4.9,3l1-1h1l0,0l2,1l1,1v1l1,2l3-2l3-1l2,1l2,2h1l0,0h1l1,1l2,2l3-2h4.9l-1,2h1h1l1-1h-1v-1l1-4.9l2-3.9l2-1h3v1l0,0h2h2l2-1v-2v-2
+  l1-2v-1v-2l-1-1v-4.9v-3.9l-3-2l-3-3l1-3l1-3.9v-2l-1-1l0,0v-3v-2l1-3.9l2-3.9l-2-3l-1-2L303.1,283.7L303.1,283.7z"/>
+<path class="russia-region" id="RU-RYA" d="M135.4,266.9l-2-1v1h-1h-1h-1h-3l-2,1h-1l-1-1l-1,1l-2,1h-1.4l-4.8,7.9l0.7,2v2h2.2l2.3,1l-0.3,2
+  l0.4,2l2,1h3l1,2l1,1h2l1-1l5.9,3h1h1l1-1l0,0v-1l1,1h2l0,0l-1-2h-2l2-1h2l1-1l2-1v-2l0,0l1-2v-2l-2-1h-1l0,0l1-1v-1v-1l-3.9-4.9
+  l-3-3.9L135.4,266.9L135.4,266.9z"/>
+<path class="russia-region" id="RU-ORL" d="M99.1,261l-3.9-1l-3.9-1l-0.4,1h-0.7l-2.2,1h-1.6l-0.4,1l-0.3,2l-2.4,1l-1.1,2l1.3,1l1.7,1v1v2
+  l2.6,1l1.9,1l0.1,2l0.2,3l1,1l1,1l-0.3,1v2h0.8h0.7l0.3,1h0.7l3.3-1l1.2,1l0.3-2l-0.1-1l0.5-1l0.6-2l4.1-2l-0.1-3l0.2-2l-1-1l-1.1-1
+  l-2.2-4.9L99.1,261L99.1,261z"/>
+<path class="russia-region" id="RU-OMS" d="M371.2,357.7l-7.9,3l-6.9-2h-2l-1,1l-3-2l-2-1l-2-1h-2v-2l1-1l-1-2l-1-1l-3,2l-3,2v3.9v2l-2,1l-1,1
+  l1,1h2h1v1l1,7.9h-3l-2-1v1v1v1h-1l-1,1v1v1h-1l0,0l-1,1v1l-2,1l-1,1l1,1l-1,1l0,0h-1v1l1,1l-2,1h-1v2l2,3l-1,4.9v2h1l-3,3.9l1,2
+  l1,1l1,1h1l1-1h1v1h1v-1l1-1v3v3.9l2-1v-1l2,1l2,2l1,1h2v1l-1,1l-2-1l-2,3l1,2l2-1l4.9,3h1l3.9-2h3l2-2h2l1-3l1-2l1-1v-1l-1-3l-1-2
+  l1-4.9l2-2l-1-1v-2h1h1l0,0l2-2l2-1h3h1v-2l-1-2l1-2l2-1v-1v-1l1-2l1-1v-2l-1-1l-1-2l1-1v-1v-1l-1-2v-1v-1v-2l-1-1v-1h1v-1v-2h1v-2
+  L371.2,357.7z"/>
+<path class="russia-region" id="RU-NGR" d="M126.5,187v-1h-3l-2,1l-1-2l-1.4-1l-1.9,1h-1.6l-4.9,2l0.7,3.9l1,3l-0.9,1h-1.2l-0.1,1l-0.2,1l-3,1
+  l-0.5,2l-1.8,2l0.2,2l1.3,2l1.4,1l5.5,2l5.4,1l1.9,1l1,1l0,0l3-1l3-1l1-1l1-1l3,2l2,3l0,0h1l1,1l2,1l1-1h1l2,1l1,2h1l2,1v-3v-3l-1-1
+  h-1v-1h-1v-2l1-3l-2-3l-1-2v-3l-2-2v-1l-1-1h-2h-2v-2v-2l-1-1l-1-1l0,0v-1l-2,1l-2,1L126.5,187L126.5,187z"/>
+<path class="russia-region" id="RU-LIP" d="M114.4,276.8h-1.6l-1.3,1h-0.8H110l-0.8,1l-0.4,1h-1.9l-1.3-1l-1.7-2l-2.2,1l-2,1l-0.6,2l-0.5,1
+  l0.1,2l-0.3,1l-1.2-1l-3.3,1l0.6,2l1.9,2l2.8,1l2.4,1v1h-0.1l0.9,1h1.2l0.9,2l-0.3,1l2.5,2l2.7,3l1.9-1l1.6-1l-1-5.9l3.5-3.9l4.3-3
+  l-0.4-2l0.3-2l-2.3-1h-2.2v-2L114.4,276.8L114.4,276.8z"/>
+<path class="russia-region" id="RU-KRS" d="M85.2,269.9v-1l-1.7-1l-1.3-1h-2.5h-0.4h-0.6h-0.5l-0.7,1l-1.8-2l-1.9,2l-1,1l-1.8-1l-0.3,1l-0.2,1
+  l-2.5,2l1.7,3l2.3,3l-0.3,1l-0.5,1h0.5l0.3,1h-0.5l-0.5,1l1.9,2h2.3h0.6h0.7l0.9,2l1.1,1l4.6,2l5.9,3l0.9,1l0.9,2l1.4-2l1.1-2l1.3,1
+  h1.2h0.3v-1l0.6-1l-0.2-1l0,0l-1.9-2l-0.6-2h-0.7l-0.3-1h-0.7h-0.8v-1l0.3-1l-1-2l-1-1l-0.2-3l-0.1-2l-1.9-1l-2.6-1L85.2,269.9
+  L85.2,269.9z"/>
+<path class="russia-region" id="RU-KGN" d="M296.2,351.8l-4.9,1l-3,1l-2-2l-1-1h-1l0,0h-1l-2-2l-2-1l-3,1l-3,2v4.9l-1,3.9h-1h-1l-1,1h-1v1
+  l-1,2l-1,1l-2,2l3.9,3l3,2v2l-2,1l1,1v1v1v1l4.9,1l4.9,1l2,1l1,1l1-1l1-1h2l3,1l1,1l7.9,1l7.9,1l1-1l1-1h1l2,1l1-1h1l-2-3.9l-1-3h-1
+  l0,0l-2-1l-1-1l-1-3l-2-3l-1-1l-1,1l-1-1v-1h-2h-1v-2v-2l-2-1l-2-1v-3.9l1-2L296.2,351.8z"/>
+<path class="russia-region" id="RU-KGD" d="M29.3,158.4L29.3,158.4h2.4l0,0H29.3z M33.7,157.4l1.2-1L33.7,157.4l-1.1,1h0.1L33.7,157.4z
+   M43.5,160.4L43.5,160.4l-5.6-1l-1.4-2l-1.6-1l-1.2,1l-1,1h0.4l1.1,3l-2.3-1l-3-1l4.1,7.9l4.7,6.9l2.8,3.9h0.5h0.4l1.1-1l3.5-1
+  l-0.9-6.9l-0.3-3l-0.1-3l-0.5-1h-0.6H43l-1.1,1l-1.1,1l-1.8-2l-0.7-2h0.5h0.7h3.1H43.5z"/>
+<path class="russia-region" id="RU-IVA" d="M171.9,257.1l-2-1l-2-1l-1-2l-1-2l-1,1l-2,1l-6.9-3.9l-4.9-2l-4.9,2l0,0l1,3l-1,3.9h2h2l1,2l1,2
+  l3,3h1l0,0v2v1l2,1l2,1h1l1,1l1-1l2-2l2,1l2,1l2-1l1-2l2-1h1v-1l-2-3h-3l1-1L171.9,257.1L171.9,257.1z"/>
+<path class="russia-region" id="RU-BRY" d="M83,244.3l-1,1h-1.1h-0.7H80h-1h-1l-1.9-1H74l-1.7-3l-3-1l-0.9,1l-0.3,2l-0.6,1h-0.7l-1.5,2l-1.6,2
+  l-0.9,2h-0.7l0.8,1l-0.2,1h0.6l2.5,1l1.9-1l0.9,1l0.6,2l1.9,1l1.6,1l2.4,3l0.3,3l-1.3,2l-0.2,3l1.9-2l1.8,2l0.7-1l0.5-1l0.6,1h0.4
+  l2.5-1l1.1-1l2.4-1l0.3-2l0.4-2l1.6,1l2.2-1h0.7l0.4-1l-2.3-3.9l1-2l1.6-1l-1-4.9l-0.6-3.9l-3.5,1L83,244.3L83,244.3z"/>
+<path class="russia-region" id="RU-AST" d="M112.9,359.7h-1.3l-1.1-1l-0.2,1h-0.2l-0.8-1h-1.3l-1.7,1l1,2l0.6,3l1.2,1l0.8,1l-1.3,1l-0.9,2
+  l0.3,3l1,2h2.6l2.1,2H112l-2.2,1l-0.5,4.9l-0.4,3.9l-3.6,1h-3.7l0.2,1l1,1l-0.4,1l-0.3,1l1,1l0.7,1l-3.4,1l-0.9,3l0.4,1h0.4h0.8h0.8
+  l0.7,1l0.7,1v1h0.3l0,0h0.3h0.4l-0.2,1h0.2h0.7l0.6-1l2.9,2l0.1,1h0.1l1.1-1h0.3h0.2l-0.2,1l0.7-1l1-1l0.6,1l-0.1,1l-0.8,1l-0.4,1
+  l1.2-1l1.2-1l2.8-2l2.9-1l0.5,1l-1.8-7.9h0.6l1.2,2h2l1-6.9v-7.9l-2-2l-1.6-2l-1,1l-1-1l0.9-3l1.7-2l-0.4-3l-1-3l2.4-2l-1-2l-0.6-2
+  l-3-1L112.9,359.7L112.9,359.7z"/>
+<path class="russia-region" id="RU-KHA" d="M817.1,297.5l-2-2l-1-1l-1,1l-1,1l-1-1h-2l-1,2l-2,3l-1-1l-1-1l-1,1h-2l-4.9-2h-3.9l-1,5.9v5.9
+  l-1,1l-2,1v1v1l-1,1l-1,1v1v1l-1,3.9l2,3l1,4.9l1,3.9l2,2l1,3l-1,1l-2-2l-1,1l-1,1l-1,3.9l-3.9,3l0,0l-2,1h-1l-2-1l0,0l-1,1v2v1
+  l-1,1l-4.9,2l-4.9,2h-1h-1l-2,2l-1,2l-1,5.9l-1,3l1,3.9h-2h-1l2,3l3,2l-1,1l-1,1v1v2l-2,1l-1,2h1h1l1,1l2,1l1,2v2l-1,1h-2v4.9
+  l-1,4.9l3.9,1l3-2l1,1h1l2-1l1-1l2,1l1,1h1h1l-1,3l-2,2v1v1l-2,2l-2,2l-1,1l-1,1v3v3l-3,2v3.9l3,1h3.9l2,2l2,3h1h1h1h1l0,0l1-1l2-1
+  l3.9-2l2-2l1-2h2l3-1l1-1h1v-1l3,1l1,3.9v3.9l1,2v2l-1,1h-3.9l-4.9,1l0,0l1,2v3.9l-2,1l-2,1l-1,1l-1,2v1v1l-3,2l-3,2l1,2v1l-1,2
+  l-1,3v3v3l1-1l0,0l1,1v1h1l1-1l1,1v1h1l2,1v3.9v3l1,3v3l3.9-2l0,0h1l0,0l1-1l1-2h2l2,1l2-1h2l0,0l1,1l2,3h2l2,1h2h1l1-2h2h2h1l2-1
+
+SVG elements with id/class:
+<path class="russia-region" id="RU-SPE" d="M135.4,169.3l-3-1l-3.9,1l-1,3.9l1,3l3.9,2l3-2l2-3L135.4,169.3z"/>
+<path class="russia-region" id="RU-SEV" d="M4.2,330.4l-2.5-1.7l-0.9-3.6l3-1.4L4.2,330.4z"/>
+
+===== IMPORTS AND USAGE =====
+app/map/explore/page.tsx:3:import PublicEcoMap, {
+app/map/explore/page.tsx:5:} from "../../../components/PublicEcoMap";
+app/map/explore/page.tsx:72:  return <PublicEcoMap complaints={complaints} />;
+components/RussiaRegionSelector.tsx:18:type RussiaRegionSelectorProps = {
+components/RussiaRegionSelector.tsx:274:export default function RussiaRegionSelector({
+components/RussiaRegionSelector.tsx:277:}: RussiaRegionSelectorProps) {
+components/RussiaRegionSelector.tsx:312:            fetch("/data/russia.svg", {
+components/RussiaRegionSelector.tsx:316:            fetch("/data/russia.json", {
+components/RussiaRegionSelector.tsx:324:            `Не удалось загрузить russia.svg: ${svgResponse.status}.`,
+components/RussiaRegionSelector.tsx:330:            `Не удалось загрузить russia.json: ${jsonResponse.status}.`,
+components/RussiaRegionSelector.tsx:388:            "Файл russia.svg содержит некорректный SVG.",
+components/RussiaRegionSelector.tsx:432:            ".russia-region",
+components/RussiaRegionSelector.tsx:437:            "В russia.svg не найдены элементы с классом russia-region.",
+components/RussiaRegionSelector.tsx:537:          ".russia-region",
+components/RussiaRegionSelector.tsx:623:              ".russia-region",
+components/RussiaRegionSelector.tsx:762:            htmlFor="russia-region-selector"
+components/RussiaRegionSelector.tsx:770:            id="russia-region-selector"
+components/PublicEcoMap.tsx:13:import RussiaRegionSelector, {
+components/PublicEcoMap.tsx:15:} from "./RussiaRegionSelector";
+components/PublicEcoMap.tsx:35:type PublicEcoMapProps = {
+components/PublicEcoMap.tsx:354:export default function PublicEcoMap({
+components/PublicEcoMap.tsx:356:}: PublicEcoMapProps) {
+components/PublicEcoMap.tsx:452:      <RussiaRegionSelector
+
+===== TYPESCRIPT CHECK =====
+components/RussiaRegionSelector.tsx(542,10): error TS18047: 'containerElement' is possibly 'null'.

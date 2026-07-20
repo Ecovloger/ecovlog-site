@@ -12,6 +12,7 @@
     "@sanity/icons": "^5.1.0",
     "@sanity/image-url": "^2.1.1",
     "@sanity/vision": "^5.31.1",
+    "@yandex/ymaps3-clusterer": "^0.0.12",
     "@yandex/ymaps3-default-ui-theme": "^0.0.25",
     "framer-motion": "^12.42.2",
     "next": "16.2.10",

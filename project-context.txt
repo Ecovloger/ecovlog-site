@@ -1,116 +1,2632 @@
-# PROJECT CONTEXT
+====================================================================================================
+./AGENTS.md
+====================================================================================================
+<!-- BEGIN:nextjs-agent-rules -->
+# This is NOT the Next.js you know
 
-==================================================
-FILE: package.json
-==================================================
-{
-  "name": "ecovlog-site",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "@sanity/icons": "^5.1.0",
-    "@sanity/image-url": "^2.1.1",
-    "@sanity/vision": "^5.31.1",
-    "framer-motion": "^12.42.2",
-    "next": "16.2.10",
-    "next-sanity": "^13.1.3",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "sanity": "^5.31.1",
-    "styled-components": "^6.4.3"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "@yandex/ymaps3-types": "^1.0.20315584",
-    "eslint": "^9",
-    "eslint-config-next": "16.2.10",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+<!-- END:nextjs-agent-rules -->
+
+
+====================================================================================================
+./CLAUDE.md
+====================================================================================================
+@AGENTS.md
+
+
+====================================================================================================
+./README.md
+====================================================================================================
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+
+## Getting Started
+
+First, run the development server:
+
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+
+====================================================================================================
+./app/api/complaints/route.ts
+====================================================================================================
+import { randomUUID } from "node:crypto";
+
+import { NextResponse } from "next/server";
+
+import {
+  isComplaintCategory,
+  type ComplaintCategory,
+} from "@/lib/complaints";
+import { findRegion } from "@/lib/regions";
+import { writeClient } from "@/sanity/lib/writeClient";
+
+export const runtime = "nodejs";
+
+const MAX_PHOTOS = 5;
+const MIN_PHOTOS = 1;
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_COMPLAINT_ID_ATTEMPTS = 10;
+
+const ALLOWED_IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+]);
+
+type UploadedPhoto = {
+  _key: string;
+  _type: "image";
+  asset: {
+    _type: "reference";
+    _ref: string;
+  };
+};
+
+type Reporter = {
+  _type: "reporter";
+  name?: string;
+  phone?: string;
+  email?: string;
+};
+
+type ComplaintDocument = {
+  _id: string;
+  _type: "complaint";
+  complaintId: string;
+  title: string;
+  description: string;
+  category: ComplaintCategory;
+  region: string;
+  address: string;
+  location: {
+    _type: "geopoint";
+    lat: number;
+    lng: number;
+  };
+  photos: UploadedPhoto[];
+  videoUrl?: string;
+  reporter: Reporter;
+  source: "website";
+  status: "moderation";
+  isPublic: false;
+  createdAt: string;
+};
+
+type SanityErrorLike = {
+  statusCode?: number;
+  response?: {
+    statusCode?: number;
+    status?: number;
+  };
+};
+
+class ComplaintValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ComplaintValidationError";
   }
 }
 
+function getRequiredText(
+  formData: FormData,
+  fieldName: string,
+  maxLength: number,
+  label: string,
+): string {
+  const value = formData.get(fieldName);
 
-==================================================
-FILE: next.config.ts
-==================================================
-import type { NextConfig } from "next";
+  if (typeof value !== "string") {
+    throw new ComplaintValidationError(
+      `Поле «${label}» не заполнено`,
+    );
+  }
 
+  const normalizedValue = value.trim();
 
-const nextConfig: NextConfig = {
+  if (!normalizedValue) {
+    throw new ComplaintValidationError(
+      `Поле «${label}» не заполнено`,
+    );
+  }
 
-  images: {
+  if (normalizedValue.length > maxLength) {
+    throw new ComplaintValidationError(
+      `Поле «${label}» не должно превышать ${maxLength} символов`,
+    );
+  }
 
-    remotePatterns: [
+  return normalizedValue;
+}
+
+function getOptionalText(
+  formData: FormData,
+  fieldName: string,
+  maxLength: number,
+  label: string,
+): string | undefined {
+  const value = formData.get(fieldName);
+
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalizedValue = value.trim();
+
+  if (!normalizedValue) {
+    return undefined;
+  }
+
+  if (normalizedValue.length > maxLength) {
+    throw new ComplaintValidationError(
+      `Поле «${label}» не должно превышать ${maxLength} символов`,
+    );
+  }
+
+  return normalizedValue;
+}
+
+function getCoordinate(
+  formData: FormData,
+  fieldName: "latitude" | "longitude",
+): number {
+  const rawValue = formData.get(fieldName);
+
+  if (
+    typeof rawValue !== "string" ||
+    !rawValue.trim()
+  ) {
+    throw new ComplaintValidationError(
+      "Необходимо указать место нарушения на карте",
+    );
+  }
+
+  const coordinate = Number(rawValue);
+
+  if (!Number.isFinite(coordinate)) {
+    throw new ComplaintValidationError(
+      "Переданы некорректные координаты",
+    );
+  }
+
+  if (
+    fieldName === "latitude" &&
+    (coordinate < -90 || coordinate > 90)
+  ) {
+    throw new ComplaintValidationError(
+      "Передана некорректная широта",
+    );
+  }
+
+  if (
+    fieldName === "longitude" &&
+    (coordinate < -180 || coordinate > 180)
+  ) {
+    throw new ComplaintValidationError(
+      "Передана некорректная долгота",
+    );
+  }
+
+  return coordinate;
+}
+
+function getCategory(formData: FormData): ComplaintCategory {
+  const value = formData.get("category");
+
+  if (
+    typeof value !== "string" ||
+    !isComplaintCategory(value)
+  ) {
+    throw new ComplaintValidationError(
+      "Выберите корректную категорию нарушения",
+    );
+  }
+
+  return value;
+}
+
+function validateRegion(region: string): void {
+  if (!findRegion(region)) {
+    throw new ComplaintValidationError(
+      "Выберите корректный регион",
+    );
+  }
+}
+
+function validateEmail(email: string | undefined): void {
+  if (!email) {
+    return;
+  }
+
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!emailPattern.test(email)) {
+    throw new ComplaintValidationError(
+      "Укажите корректный адрес электронной почты",
+    );
+  }
+}
+
+function validateVideoUrl(
+  videoUrl: string | undefined,
+): void {
+  if (!videoUrl) {
+    return;
+  }
+
+  let parsedUrl: URL;
+
+  try {
+    parsedUrl = new URL(videoUrl);
+  } catch {
+    throw new ComplaintValidationError(
+      "Укажите корректную ссылку на видео",
+    );
+  }
+
+  if (
+    parsedUrl.protocol !== "http:" &&
+    parsedUrl.protocol !== "https:"
+  ) {
+    throw new ComplaintValidationError(
+      "Ссылка на видео должна начинаться с http:// или https://",
+    );
+  }
+}
+
+function validateFiles(files: File[]): void {
+  if (files.length < MIN_PHOTOS) {
+    throw new ComplaintValidationError(
+      "Добавьте хотя бы одну фотографию",
+    );
+  }
+
+  if (files.length > MAX_PHOTOS) {
+    throw new ComplaintValidationError(
+      `Можно загрузить не более ${MAX_PHOTOS} фотографий`,
+    );
+  }
+
+  for (const file of files) {
+    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+      throw new ComplaintValidationError(
+        `Файл «${file.name}» имеет неподдерживаемый формат изображения`,
+      );
+    }
+
+    if (file.size === 0) {
+      throw new ComplaintValidationError(
+        `Файл «${file.name}» пустой`,
+      );
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      throw new ComplaintValidationError(
+        `Размер файла «${file.name}» превышает 10 мегабайт`,
+      );
+    }
+  }
+}
+
+async function uploadPhotos(
+  files: File[],
+): Promise<UploadedPhoto[]> {
+  const uploadedPhotos: UploadedPhoto[] = [];
+
+  for (const file of files) {
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const asset = await writeClient.assets.upload(
+      "image",
+      buffer,
       {
-        protocol: "https",
-        hostname: "cdn.sanity.io",
+        filename: file.name,
+        contentType: file.type,
       },
-    ],
+    );
 
-    formats: [
-      "image/avif",
-      "image/webp",
-    ],
+    uploadedPhotos.push({
+      _key: randomUUID(),
+      _type: "image",
+      asset: {
+        _type: "reference",
+        _ref: asset._id,
+      },
+    });
+  }
 
-  },
+  return uploadedPhotos;
+}
 
+async function removeUploadedAssets(
+  photos: UploadedPhoto[],
+): Promise<void> {
+  if (photos.length === 0) {
+    return;
+  }
+
+  await Promise.allSettled(
+    photos.map((photo) =>
+      writeClient.delete(photo.asset._ref),
+    ),
+  );
+}
+
+function isConflictError(error: unknown): boolean {
+  if (
+    typeof error !== "object" ||
+    error === null
+  ) {
+    return false;
+  }
+
+  const sanityError = error as SanityErrorLike;
+
+  return (
+    sanityError.statusCode === 409 ||
+    sanityError.response?.statusCode === 409 ||
+    sanityError.response?.status === 409
+  );
+}
+
+async function getLatestComplaintNumber(): Promise<number> {
+  const latestComplaintId =
+    await writeClient.fetch<string | null>(
+      `
+        *[
+          _type == "complaint" &&
+          defined(complaintId) &&
+          complaintId match "GF-*"
+        ]
+        | order(complaintId desc)[0].complaintId
+      `,
+    );
+
+  const numberMatch =
+    latestComplaintId?.match(/^GF-(\d{6})$/);
+
+  if (!numberMatch) {
+    return 0;
+  }
+
+  const complaintNumber = Number(numberMatch[1]);
+
+  return Number.isSafeInteger(complaintNumber)
+    ? complaintNumber
+    : 0;
+}
+
+function createPublicComplaintId(
+  complaintNumber: number,
+): string {
+  return `GF-${String(complaintNumber).padStart(6, "0")}`;
+}
+
+function createSanityDocumentId(
+  complaintId: string,
+): string {
+  return `complaint-${complaintId.toLowerCase()}`;
+}
+
+async function createComplaintDocument(
+  complaintData: Omit<
+    ComplaintDocument,
+    "_id" | "complaintId"
+  >,
+): Promise<ComplaintDocument> {
+  for (
+    let attempt = 0;
+    attempt < MAX_COMPLAINT_ID_ATTEMPTS;
+    attempt += 1
+  ) {
+    const latestNumber =
+      await getLatestComplaintNumber();
+
+    const complaintNumber =
+      latestNumber + 1 + attempt;
+
+    const complaintId =
+      createPublicComplaintId(complaintNumber);
+
+    const document: ComplaintDocument = {
+      ...complaintData,
+      _id: createSanityDocumentId(complaintId),
+      complaintId,
+    };
+
+    try {
+      return await writeClient.create(document);
+    } catch (error) {
+      if (isConflictError(error)) {
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw new Error(
+    "Не удалось присвоить номер обращению",
+  );
+}
+
+export async function POST(request: Request) {
+  let uploadedPhotos: UploadedPhoto[] = [];
+
+  try {
+    if (!process.env.SANITY_API_WRITE_TOKEN) {
+      console.error(
+        "SANITY_API_WRITE_TOKEN is not configured",
+      );
+
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Сервер не настроен для приёма обращений",
+        },
+        {
+          status: 500,
+        },
+      );
+    }
+
+    const formData = await request.formData();
+
+    const title = getRequiredText(
+      formData,
+      "title",
+      140,
+      "Название проблемы",
+    );
+
+    const description = getRequiredText(
+      formData,
+      "description",
+      3000,
+      "Описание проблемы",
+    );
+
+    if (description.length < 20) {
+      throw new ComplaintValidationError(
+        "Описание должно содержать не менее 20 символов",
+      );
+    }
+
+    const category = getCategory(formData);
+
+    const region = getRequiredText(
+      formData,
+      "region",
+      150,
+      "Регион",
+    );
+
+    validateRegion(region);
+
+    const address = getRequiredText(
+      formData,
+      "address",
+      500,
+      "Адрес или описание места",
+    );
+
+    const latitude = getCoordinate(
+      formData,
+      "latitude",
+    );
+
+    const longitude = getCoordinate(
+      formData,
+      "longitude",
+    );
+
+    const name = getOptionalText(
+      formData,
+      "name",
+      150,
+      "Имя",
+    );
+
+    const phone = getOptionalText(
+      formData,
+      "phone",
+      50,
+      "Телефон",
+    );
+
+    const email = getOptionalText(
+      formData,
+      "email",
+      254,
+      "Электронная почта",
+    );
+
+    const videoUrl = getOptionalText(
+      formData,
+      "videoUrl",
+      2048,
+      "Ссылка на видео",
+    );
+
+    validateEmail(email);
+    validateVideoUrl(videoUrl);
+
+    if (!phone && !email) {
+      throw new ComplaintValidationError(
+        "Укажите хотя бы один способ связи: телефон или электронную почту",
+      );
+    }
+
+    const files = formData
+      .getAll("photos")
+      .filter(
+        (value): value is File =>
+          value instanceof File,
+      );
+
+    validateFiles(files);
+
+    uploadedPhotos = await uploadPhotos(files);
+
+    const complaint =
+      await createComplaintDocument({
+        _type: "complaint",
+        title,
+        description,
+        category,
+        region,
+        address,
+        location: {
+          _type: "geopoint",
+          lat: latitude,
+          lng: longitude,
+        },
+        photos: uploadedPhotos,
+        videoUrl,
+        reporter: {
+          _type: "reporter",
+          name,
+          phone,
+          email,
+        },
+        source: "website",
+        status: "moderation",
+        isPublic: false,
+        createdAt: new Date().toISOString(),
+      });
+
+    return NextResponse.json(
+      {
+        success: true,
+        complaintId: complaint.complaintId,
+        documentId: complaint._id,
+        message:
+          "Обращение успешно отправлено на модерацию",
+      },
+      {
+        status: 201,
+      },
+    );
+  } catch (error) {
+    console.error(
+      "Complaint submission error:",
+      error,
+    );
+
+    await removeUploadedAssets(uploadedPhotos);
+
+    const isValidationError =
+      error instanceof ComplaintValidationError;
+
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Не удалось отправить обращение";
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: isValidationError
+          ? message
+          : "Не удалось отправить обращение. Попробуйте ещё раз.",
+      },
+      {
+        status: isValidationError ? 400 : 500,
+      },
+    );
+  }
+}
+
+====================================================================================================
+./app/articles/[slug]/page.tsx
+====================================================================================================
+import {client} from "@/sanity/lib/client";
+import {urlFor} from "@/sanity/lib/image";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+import {PortableText} from "@portabletext/react";
+
+
+const query = `
+
+*[_type == "article" && slug.current == $slug][0]{
+
+title,
+category,
+cover,
+description,
+content,
+date
+
+}
+
+`;
+
+
+const categories = {
+
+news:"Новости",
+
+investigation:"Расследования",
+
+science:"Научные материалы",
+
+analytics:"Аналитика"
 
 };
 
-export default nextConfig;
+export async function generateMetadata({
 
-==================================================
-FILE: tsconfig.json
-==================================================
+params,
+
+}: {
+
+params: Promise<{
+slug: string
+}>
+
+}) {
+
+
+const {slug} = await params;
+
+
+const article = await client.fetch(
+
+query,
+
 {
-  "compilerOptions": {
-    "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noEmit": true,
-    "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "jsx": "react-jsx",
-    "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
-    "paths": {
-      "@/*": ["./*"],
-      "ymaps3": ["./node_modules/@yandex/ymaps3-types"]
-    }
-  },
-  "include": [
-    "next-env.d.ts",
-    "global.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
-    "**/*.mts"
-  ],
-  "exclude": ["node_modules"]
+slug
 }
 
-==================================================
-FILE: app/map/report/page.tsx
-==================================================
+);
+
+
+if(!article){
+
+return {
+title: "Статья не найдена"
+}
+
+}
+
+
+return {
+
+title: article.title,
+
+description: article.description,
+
+openGraph: {
+
+title: article.title,
+
+description: article.description,
+
+images: article.cover
+? [urlFor(article.cover).width(1200).height(630).url()]
+: undefined,
+
+type: "article"
+
+},
+
+twitter: {
+
+card: "summary_large_image",
+
+title: article.title,
+
+description: article.description,
+
+images: article.cover
+? [urlFor(article.cover).width(1200).height(630).url()]
+: undefined
+
+}
+
+}
+
+}
+
+export default async function ArticlePage({
+
+params,
+
+}:{
+
+params: Promise<{
+slug:string
+}>
+
+}){
+
+
+const {slug} = await params;
+
+
+
+const article = await client.fetch(
+
+query,
+
+{
+slug
+}
+
+);
+
+
+
+if(!article){
+
+return (
+
+<main className="
+min-h-screen
+bg-neutral-950
+text-white
+p-10
+">
+
+Статья не найдена
+
+</main>
+
+)
+
+}
+
+
+
+return (
+
+<main className="
+min-h-screen
+bg-neutral-950
+text-white
+">
+
+
+<Header />
+
+
+
+<article className="
+max-w-[900px]
+mx-auto
+px-6
+py-16
+">
+
+
+
+<div className="
+text-green-400
+text-sm
+uppercase
+">
+
+{
+categories[article.category as keyof typeof categories]
+}
+
+</div>
+
+
+
+
+<h1 className="
+mt-4
+text-4xl
+md:text-5xl
+font-bold
+leading-tight
+">
+
+{article.title}
+
+</h1>
+
+
+
+
+<div className="
+mt-4
+text-white/40
+">
+
+{article.date}
+
+</div>
+
+
+
+
+
+{article.cover && (
+
+<div className="
+mt-8
+flex
+justify-center
+">
+
+
+<img
+
+src={
+urlFor(article.cover)
+.width(600)
+.url()
+}
+
+alt={article.title}
+
+className="
+rounded-2xl
+w-full
+max-w-[600px]
+max-h-[350px]
+object-cover
+"
+
+/>
+
+
+</div>
+
+)}
+
+
+
+
+
+{article.description && (
+
+<p className="
+mt-8
+text-xl
+text-white/70
+leading-relaxed
+">
+
+{article.description}
+
+</p>
+
+)}
+
+
+
+
+
+
+<div className="
+mt-10
+prose
+prose-invert
+prose-lg
+max-w-none
+">
+
+
+<PortableText value={article.content}/>
+
+
+</div>
+
+
+
+
+</article>
+
+
+
+<Footer />
+
+
+</main>
+
+)
+
+}
+
+====================================================================================================
+./app/articles/page.tsx
+====================================================================================================
+import {client} from "@/sanity/lib/client";
+import {urlFor} from "@/sanity/lib/image";
+import SectionHeader from "@/components/SectionHeader";
+import Footer from "@/components/Footer";
+import Link from "next/link";
+
+
+const ARTICLES_PER_PAGE = 20;
+
+
+
+const categories = [
+
+{
+title:"Все",
+value:""
+},
+
+{
+title:"Новости",
+value:"news"
+},
+
+{
+title:"Расследования",
+value:"investigation"
+},
+
+{
+title:"Научные материалы",
+value:"science"
+},
+
+{
+title:"Аналитика",
+value:"analytics"
+}
+
+];
+
+
+
+
+
+export default async function ArticlesPage({
+
+searchParams,
+
+}:{
+
+searchParams: Promise<{
+category?: string;
+search?: string;
+page?: string;
+}>
+
+}) {
+
+
+
+const params = await searchParams;
+
+
+
+const category =
+params.category || "";
+
+
+
+const search =
+params.search
+?
+`*${params.search}*`
+:
+null;
+
+
+
+const currentPage =
+Number(params.page || "1");
+
+
+
+
+
+
+const query = `
+
+*[
+_type == "article"
+
+&&
+
+(
+!defined($category)
+||
+category == $category
+)
+
+&&
+
+(
+!defined($search)
+||
+title match $search
+||
+description match $search
+)
+
+]
+
+| order(date desc){
+
+title,
+slug,
+category,
+cover,
+description,
+date
+
+}
+
+`;
+
+
+
+
+
+const articles = await client.fetch(
+
+query,
+
+{
+
+category:
+category || null,
+
+search
+
+}
+
+);
+
+
+
+
+
+
+const totalPages =
+Math.ceil(
+articles.length / ARTICLES_PER_PAGE
+);
+
+
+
+const start =
+(currentPage - 1) * ARTICLES_PER_PAGE;
+
+
+
+const currentArticles =
+articles.slice(
+start,
+start + ARTICLES_PER_PAGE
+);
+
+
+
+
+
+
+return (
+
+<main
+
+className="
+min-h-screen
+bg-neutral-950
+text-white
+"
+
+>
+
+
+
+<SectionHeader
+
+current="/articles"
+
+searchAction="/articles"
+
+searchPlaceholder="Поиск статей..."
+
+ />
+
+
+
+
+
+
+
+<section
+
+className="
+max-w-[1500px]
+mx-auto
+px-3
+md:px-6
+pt-2
+md:pt-12
+pb-6
+md:pb-12
+"
+
+>
+
+
+
+
+<h1
+
+className="
+text-3xl
+md:text-4xl
+font-bold
+"
+
+>
+
+Статьи
+
+</h1>
+
+
+
+
+
+
+<p
+
+className="
+mt-3
+md:mt-4
+text-base
+md:text-lg
+text-white/60
+"
+
+>
+
+Новости, экологические расследования,
+научные материалы и аналитика.
+
+</p>
+
+
+
+
+
+
+
+<div
+
+className="
+flex
+flex-wrap
+gap-2
+md:gap-3
+mt-5
+md:mt-8
+"
+
+>
+
+
+{
+
+categories.map((item)=>(
+
+
+<Link
+
+
+key={item.value}
+
+
+href={
+
+item.value
+
+?
+
+`/articles?category=${item.value}`
+
+:
+
+"/articles"
+
+}
+
+
+className={`
+
+px-3
+md:px-5
+py-1.5
+md:py-2
+text-xs
+md:text-base
+rounded-full
+border
+transition
+
+${
+
+category === item.value
+
+?
+
+"bg-white text-black"
+
+:
+
+"bg-white/10 text-white hover:bg-white/20"
+
+}
+
+`}
+
+
+>
+
+{item.title}
+
+
+</Link>
+
+
+))
+
+
+}
+
+
+
+</div>
+
+
+
+
+
+
+
+
+
+<div
+
+className="
+grid
+grid-cols-2
+lg:grid-cols-3
+xl:grid-cols-4
+gap-3
+md:gap-6
+mt-6
+md:mt-10
+"
+
+>
+
+
+
+
+{
+
+currentArticles.length > 0 ? (
+
+
+
+currentArticles.map((article:any)=>(
+
+
+
+<Link
+
+
+key={article.slug.current}
+
+
+href={`/articles/${article.slug.current}`}
+
+
+>
+
+
+
+
+<article
+
+className="
+rounded-xl
+md:rounded-2xl
+overflow-hidden
+bg-white/10
+border
+border-white/10
+hover:scale-[1.03]
+transition
+duration-300
+backdrop-blur-xl
+"
+
+>
+
+
+
+
+{
+article.cover && (
+
+
+<img
+
+
+src={
+
+urlFor(article.cover)
+.width(600)
+.height(350)
+.url()
+
+}
+
+
+alt={article.title}
+
+
+className="
+w-full
+h-24
+md:h-44
+object-cover
+"
+
+
+/>
+
+
+)
+
+}
+
+
+
+
+
+
+
+<div
+
+className="
+p-2
+md:p-4
+"
+
+>
+
+
+
+
+<div
+
+className="
+text-[9px]
+md:text-xs
+text-green-400
+uppercase
+"
+
+>
+
+
+{
+
+categories.find(
+
+(c)=>
+c.value===article.category
+
+)?.title
+
+
+}
+
+
+</div>
+
+
+
+
+
+
+
+<h2
+
+className="
+mt-1
+md:mt-2
+text-sm
+md:text-xl
+font-bold
+line-clamp-2
+"
+
+>
+
+
+{article.title}
+
+
+</h2>
+
+
+
+
+
+
+
+<p
+
+className="
+mt-1
+md:mt-2
+text-xs
+md:text-sm
+text-white/60
+line-clamp-2
+"
+
+>
+
+
+{article.description}
+
+
+</p>
+
+
+
+
+
+
+
+<div
+
+className="
+mt-2
+md:mt-4
+text-[10px]
+md:text-xs
+text-white/40
+"
+
+>
+
+
+{article.date}
+
+
+</div>
+
+
+
+
+
+
+
+</div>
+
+
+
+</article>
+
+
+
+
+</Link>
+
+
+
+))
+
+
+)
+
+:
+
+(
+
+
+<p
+
+className="
+text-white/50
+mt-10
+"
+
+>
+
+Ничего не найдено
+
+</p>
+
+
+)
+
+
+}
+
+
+
+
+</div>
+
+
+
+
+
+
+
+
+
+{
+
+totalPages > 1 && (
+
+
+
+<div
+
+className="
+flex
+justify-center
+gap-2
+mt-12
+flex-wrap
+"
+
+>
+
+
+{
+
+
+Array.from({
+
+length: totalPages
+
+}).map((_,index)=>{
+
+
+const page=index+1;
+
+
+
+return (
+
+
+
+<Link
+
+
+key={page}
+
+
+href={
+
+`/articles?${
+
+category
+?
+`category=${category}&`
+:
+""
+
+}
+
+${
+
+search
+?
+`search=${params.search}&`
+:
+""
+
+}
+
+page=${page}`
+
+
+}
+
+
+className={`
+
+px-4
+py-2
+rounded-full
+text-sm
+border
+transition
+
+
+${
+
+currentPage===page
+
+?
+
+"bg-white text-black border-white"
+
+:
+
+"bg-white/10 text-white border-white/20 hover:bg-white/20"
+
+}
+
+
+`}
+
+
+>
+
+
+{page}
+
+
+</Link>
+
+
+)
+
+
+})
+
+
+}
+
+
+
+
+</div>
+
+
+)
+
+}
+
+
+
+
+
+</section>
+
+
+
+
+
+<Footer />
+
+
+
+</main>
+
+)
+
+}
+
+====================================================================================================
+./app/contacts/page.tsx
+====================================================================================================
+import {client} from "@/sanity/lib/client";
+import {urlFor} from "@/sanity/lib/image";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+import ContactButtons from "@/components/ContactButtons";
+
+export const dynamic = "force-dynamic";
+
+const query = `
+*[_type == "contact"][0]{
+  name,
+  photo,
+  description,
+  youtube,
+  instagram,
+  tiktok,
+  telegram,
+  email,
+  phone
+}
+`;
+
+export default async function ContactsPage(){
+
+  const contact = await client.fetch(query);
+
+  if(!contact){
+    return (
+      <main className="p-10 text-white">
+        Контакты не найдены
+      </main>
+    )
+  }
+
+  return (
+    <main
+      className="
+      min-h-screen
+      bg-neutral-950
+      text-white
+    "
+    >
+
+      <Header />
+
+      <section
+        className="
+        max-w-[1100px]
+        mx-auto
+
+        px-4
+        md:px-6
+
+        pt-2
+        pb-8
+
+        md:py-16
+      "
+      >
+
+        <div
+          className="
+          grid
+          md:grid-cols-2
+
+          gap-2
+          md:gap-12
+
+          items-center
+        "
+        >
+
+          {/* Фото */}
+
+          <div
+            className="
+            flex
+            justify-center
+            md:justify-start
+          "
+          >
+
+            {contact.photo && (
+
+              <img
+                src={
+                  urlFor(contact.photo)
+                    .width(700)
+                    .url()
+                }
+
+                alt={contact.name}
+
+                className="
+                rounded-3xl
+
+                w-[38%]
+                sm:w-[34%]
+
+                md:w-full
+              "
+              />
+
+            )}
+
+          </div>
+
+          {/* Правая колонка */}
+
+          <div>
+
+            <h1
+              className="
+              text-4xl
+              md:text-5xl
+
+              font-bold
+              leading-tight
+
+              text-center
+              md:text-left
+            "
+            >
+              {contact.name}
+            </h1>
+
+            <p
+              className="
+              mt-2
+              md:mt-6
+
+              text-sm
+              md:text-xl
+
+              text-white/70
+
+              text-center
+              md:text-left
+            "
+            >
+              {contact.description}
+            </p>
+
+            <ContactButtons
+              youtube={contact.youtube}
+              instagram={contact.instagram}
+              tiktok={contact.tiktok}
+              telegram={contact.telegram}
+              email={contact.email}
+              phone={contact.phone}
+            />
+
+          </div>
+
+        </div>
+
+      </section>
+
+      <Footer />
+
+    </main>
+  )
+}
+
+====================================================================================================
+./app/globals.css
+====================================================================================================
+@import "tailwindcss";
+
+
+:root {
+
+  --background: transparent;
+
+  --foreground: white;
+
+}
+
+
+
+html {
+
+  background: transparent;
+
+}
+
+
+
+body {
+
+  margin:0;
+
+  padding:0;
+
+  min-height:100vh;
+
+  color:white;
+
+  background:
+
+  linear-gradient(
+    rgba(0,0,0,0.78),
+    rgba(0,0,0,0.88)
+  ),
+
+  url("/images/site-bg.jpg");
+
+  background-size:cover;
+
+  background-position:center;
+
+  background-attachment:fixed;
+
+}
+
+
+
+.bg-neutral-950 {
+
+  background-color: transparent !important;
+
+}
+
+====================================================================================================
+./app/layout.tsx
+====================================================================================================
+import "./globals.css";
+
+import type { Metadata } from "next";
+import { Oswald } from "next/font/google";
+import Script from "next/script";
+
+import PageBackground from "@/components/PageBackground";
+
+const oswald = Oswald({
+  subsets: ["cyrillic", "latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-oswald",
+});
+
+export const metadata: Metadata = {
+  metadataBase: new URL("https://ecovloger.ru"),
+
+  title: {
+    default: "EcoVlog — экологические новости России",
+    template: "%s — EcoVlog",
+  },
+
+  description:
+    "Экологические расследования, новости природы, научные материалы и карта экологических нарушений.",
+
+  keywords: [
+    "экология",
+    "экологические новости",
+    "экологические нарушения",
+    "природа России",
+    "экологические расследования",
+    "Зелёный Фронт",
+    "EcoVlog",
+  ],
+
+  authors: [
+    {
+      name: "EcoVlog",
+    },
+  ],
+
+  openGraph: {
+    title: "EcoVlog — экологические новости России",
+    description:
+      "Экологические расследования, новости природы и мониторинг экологических нарушений.",
+    type: "website",
+    locale: "ru_RU",
+    url: "https://ecovloger.ru",
+    siteName: "EcoVlog",
+    images: [
+      {
+        url: "/images/ecovlog-logo.png",
+        width: 800,
+        height: 800,
+        alt: "EcoVlog",
+      },
+    ],
+  },
+
+  twitter: {
+    card: "summary_large_image",
+    title: "EcoVlog — экологические новости России",
+    description:
+      "Экологические расследования, новости природы и мониторинг экологических нарушений.",
+    images: ["/images/ecovlog-logo.png"],
+  },
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  const yandexMapsApiKey =
+    process.env.NEXT_PUBLIC_YANDEX_MAPS_API_KEY ?? "";
+
+  return (
+    <html lang="ru">
+      <body className={oswald.variable}>
+        <PageBackground>{children}</PageBackground>
+
+        {yandexMapsApiKey && (
+          <Script
+            src={`https://api-maps.yandex.ru/v3/?apikey=${encodeURIComponent(
+              yandexMapsApiKey,
+            )}&lang=ru_RU`}
+            strategy="beforeInteractive"
+          />
+        )}
+      </body>
+    </html>
+  );
+}
+
+====================================================================================================
+./app/map/page.tsx
+====================================================================================================
+import type { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
+
+import Footer from "@/components/Footer";
+import SectionHeader from "@/components/SectionHeader";
+import { client } from "@/sanity/lib/client";
+
+export const metadata: Metadata = {
+  title: "Народная карта экологических нарушений",
+  description:
+    "Сообщите об экологическом нарушении на Народной карте. Мы добиваемся устранения нарушений и показываем результаты работы.",
+};
+
+export const revalidate = 60;
+
+type ComplaintStatistics = {
+  total: number;
+  resolved: number;
+  inProgress: number;
+};
+
+const STATISTICS_QUERY = `
+  {
+    "total": count(
+      *[
+        _type == "complaint" &&
+        status in ["inProgress", "resolved"]
+      ]
+    ),
+
+    "resolved": count(
+      *[
+        _type == "complaint" &&
+        status == "resolved"
+      ]
+    ),
+
+    "inProgress": count(
+      *[
+        _type == "complaint" &&
+        status == "inProgress"
+      ]
+    )
+  }
+`;
+
+async function getStatistics(): Promise<ComplaintStatistics> {
+  try {
+    return await client.fetch<ComplaintStatistics>(
+      STATISTICS_QUERY,
+    );
+  } catch (error) {
+    console.error(
+      "Failed to load complaint statistics:",
+      error,
+    );
+
+    return {
+      total: 0,
+      resolved: 0,
+      inProgress: 0,
+    };
+  }
+}
+
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat(
+    "ru-RU",
+  ).format(value);
+}
+
+function LocationIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-5 w-5 shrink-0"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <path
+        d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+
+      <circle
+        cx="12"
+        cy="10"
+        r="2.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
+function StatisticsIcon({
+  type,
+}: {
+  type:
+    | "total"
+    | "resolved"
+    | "inProgress";
+}) {
+  if (type === "resolved") {
+    return (
+      <svg
+        aria-hidden="true"
+        className="h-6 w-6"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
+        <path
+          d="m7 12 3 3 7-7"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.8"
+        />
+
+        <circle
+          cx="12"
+          cy="12"
+          r="9"
+          stroke="currentColor"
+          strokeWidth="1.8"
+        />
+      </svg>
+    );
+  }
+
+  if (type === "inProgress") {
+    return (
+      <svg
+        aria-hidden="true"
+        className="h-6 w-6"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
+        <circle
+          cx="12"
+          cy="12"
+          r="9"
+          stroke="currentColor"
+          strokeWidth="1.8"
+        />
+
+        <path
+          d="M12 7v5l3 2"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.8"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-6 w-6"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <path
+        d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+
+      <circle
+        cx="12"
+        cy="10"
+        r="2.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
+export default async function MapPage() {
+  const statistics =
+    await getStatistics();
+
+  const statisticCards = [
+    {
+      label: "Обращений",
+      value: statistics.total,
+      type: "total" as const,
+    },
+    {
+      label: "Решено",
+      value: statistics.resolved,
+      type: "resolved" as const,
+    },
+    {
+      label: "В работе",
+      value: statistics.inProgress,
+      type: "inProgress" as const,
+    },
+  ];
+
+  return (
+    <main className="min-h-screen bg-neutral-950 text-white">
+      <SectionHeader current="/map" />
+
+      <section
+        className="
+          mx-auto
+          max-w-[1400px]
+          px-3
+          pb-12
+          pt-1
+          sm:px-4
+          md:px-6
+          md:pb-20
+          md:pt-6
+        "
+      >
+        <div className="text-center">
+          <h1
+            className="
+              mx-auto
+              max-w-5xl
+              text-2xl
+              font-bold
+              leading-tight
+              tracking-tight
+              sm:text-3xl
+              md:text-4xl
+              lg:text-5xl
+            "
+          >
+            Народная карта экологических
+            нарушений
+          </h1>
+
+          <p
+            className="
+              mx-auto
+              mt-3
+              max-w-3xl
+              text-sm
+              leading-relaxed
+              text-white/60
+              sm:text-base
+              md:mt-4
+              md:text-lg
+            "
+          >
+            Здесь вы отмечаете
+            экологические нарушения, а мы
+            добиваемся их устранения и
+            показываем результаты работы.
+          </p>
+        </div>
+
+        <Link
+          aria-label="Сообщить об экологическом нарушении"
+          className="
+            group
+            relative
+            mt-5
+            block
+            overflow-hidden
+            rounded-[22px]
+            border
+            border-white/10
+            bg-white/[0.03]
+            shadow-[0_24px_80px_rgba(0,0,0,0.4)]
+            outline-none
+            transition
+            duration-500
+            hover:border-white/20
+            hover:shadow-[0_30px_100px_rgba(0,0,0,0.55)]
+            focus-visible:ring-2
+            focus-visible:ring-white/70
+            focus-visible:ring-offset-4
+            focus-visible:ring-offset-neutral-950
+            md:mt-7
+            md:rounded-[30px]
+          "
+          href="/map/report"
+        >
+          <div
+            className="
+              relative
+              h-[230px]
+              overflow-hidden
+              min-[390px]:h-[250px]
+              sm:h-[300px]
+              md:h-[390px]
+              lg:h-[430px]
+              xl:h-[460px]
+            "
+          >
+            <Image
+              alt=""
+              className="
+                object-cover
+                transition-transform
+                duration-700
+                ease-out
+                group-hover:scale-[1.025]
+              "
+              fill
+              priority
+              sizes="
+                (max-width: 640px) 100vw,
+                (max-width: 1400px) 96vw,
+                1400px
+              "
+              src="/images/ecocard.png"
+            />
+
+            <div
+              className="
+                absolute
+                inset-0
+                bg-gradient-to-b
+                from-black/5
+                via-black/10
+                to-black/40
+                transition-colors
+                duration-500
+                group-hover:from-black/0
+                group-hover:via-black/5
+                group-hover:to-black/30
+              "
+            />
+
+            <div
+              className="
+                pointer-events-none
+                absolute
+                inset-y-0
+                -left-1/2
+                w-1/3
+                -skew-x-12
+                bg-gradient-to-r
+                from-transparent
+                via-white/10
+                to-transparent
+                opacity-0
+                transition-all
+                duration-1000
+                group-hover:left-[120%]
+                group-hover:opacity-100
+              "
+            />
+
+            <div
+              className="
+                absolute
+                inset-0
+                flex
+                items-center
+                justify-center
+                p-4
+                md:p-5
+              "
+            >
+              <div
+                className="
+                  flex
+                  items-center
+                  gap-2
+                  rounded-full
+                  border
+                  border-white/25
+                  bg-black/25
+                  px-5
+                  py-3
+                  text-sm
+                  font-semibold
+                  text-white
+                  shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_18px_50px_rgba(0,0,0,0.3)]
+                  backdrop-blur-2xl
+                  transition
+                  duration-500
+                  group-hover:-translate-y-1
+                  group-hover:scale-[1.03]
+                  group-hover:border-white/40
+                  group-hover:bg-black/35
+                  sm:text-base
+                  md:gap-3
+                  md:px-8
+                  md:py-4
+                  md:text-lg
+              "
+              >
+                <LocationIcon />
+
+                <span>
+                  Сообщить о нарушении
+                </span>
+              </div>
+            </div>
+          </div>
+        </Link>
+
+        <div
+          className="
+            mt-4
+            grid
+            grid-cols-3
+            gap-2
+            md:mt-5
+            md:gap-5
+          "
+        >
+          {statisticCards.map(
+            (card) => (
+              <div
+                className="
+                  relative
+                  min-w-0
+                  overflow-hidden
+                  rounded-[18px]
+                  border
+                  border-white/10
+                  bg-white/[0.055]
+                  px-3
+                  py-4
+                  backdrop-blur-2xl
+                  transition
+                  duration-300
+                  hover:-translate-y-1
+                  hover:border-white/20
+                  hover:bg-white/[0.075]
+                  sm:px-4
+                  md:rounded-[26px]
+                  md:px-7
+                  md:py-7
+                "
+                key={card.label}
+              >
+                <div
+                  className="
+                    absolute
+                    -right-12
+                    -top-12
+                    h-32
+                    w-32
+                    rounded-full
+                    bg-white/[0.04]
+                    blur-2xl
+                  "
+                />
+
+                <div
+                  className="
+                    relative
+                    flex
+                    flex-col
+                    items-start
+                    gap-3
+                    md:flex-row
+                    md:items-center
+                    md:justify-between
+                    md:gap-4
+                  "
+                >
+                  <div className="min-w-0">
+                    <div
+                      className="
+                        text-2xl
+                        font-bold
+                        tracking-tight
+                        md:text-4xl
+                      "
+                    >
+                      {formatNumber(
+                        card.value,
+                      )}
+                    </div>
+
+                    <div
+                      className="
+                        mt-1
+                        truncate
+                        text-xs
+                        font-medium
+                        text-white/55
+                        sm:text-sm
+                        md:mt-2
+                        md:text-base
+                      "
+                    >
+                      {card.label}
+                    </div>
+                  </div>
+
+                  <div
+                    className="
+                      hidden
+                      h-12
+                      w-12
+                      shrink-0
+                      items-center
+                      justify-center
+                      rounded-2xl
+                      border
+                      border-white/10
+                      bg-white/[0.07]
+                      text-white/70
+                      shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]
+                      md:flex
+                    "
+                  >
+                    <StatisticsIcon
+                      type={card.type}
+                    />
+                  </div>
+                </div>
+              </div>
+            ),
+          )}
+        </div>
+      </section>
+
+      <Footer />
+    </main>
+  );
+}
+
+====================================================================================================
+./app/map/report/page.tsx
+====================================================================================================
 "use client";
 
 import Link from "next/link";
@@ -121,33 +2637,33 @@ import type { LngLat } from "@yandex/ymaps3-types";
 import Footer from "@/components/Footer";
 import LocationPicker from "@/components/LocationPicker";
 import SectionHeader from "@/components/SectionHeader";
+import { COMPLAINT_CATEGORIES } from "@/lib/complaints";
 import {
   findRegion,
   REGIONS,
 } from "@/lib/regions";
 
-const COMPLAINT_CATEGORIES = [
-  "Несанкционированная свалка",
-  "Нарушение вывоза отходов",
-  "Сжигание отходов",
-  "Загрязнение водного объекта",
-  "Загрязнение воздуха",
-  "Загрязнение или повреждение почвы",
-  "Незаконная вырубка",
-  "Нарушение на особо охраняемой природной территории",
-  "Жестокое обращение с животными",
-  "Другое экологическое нарушение",
-];
+const MAX_PHOTOS = 5;
+const MAX_FILE_SIZE =
+  10 * 1024 * 1024;
+
+const ALLOWED_IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+]);
 
 const fieldClassName = `
   w-full
-  rounded-2xl
+  rounded-xl
   border
   border-white/10
   bg-white/[0.055]
-  px-5
-  py-4
-  text-base
+  px-4
+  py-3
+  text-sm
   text-white
   outline-none
   transition
@@ -157,74 +2673,431 @@ const fieldClassName = `
   focus:bg-white/[0.075]
   focus:ring-4
   focus:ring-lime-400/10
+  disabled:cursor-not-allowed
+  disabled:opacity-50
+  md:rounded-2xl
+  md:px-5
+  md:py-4
+  md:text-base
 `;
 
+type ComplaintApiResponse = {
+  success: boolean;
+  complaintId?: string;
+  documentId?: string;
+  message?: string;
+  error?: string;
+};
+
+function getFileKey(
+  file: File,
+): string {
+  return [
+    file.name,
+    file.size,
+    file.lastModified,
+  ].join("-");
+}
+
+function formatFileSize(
+  size: number,
+): string {
+  if (size < 1024 * 1024) {
+    return `${Math.ceil(
+      size / 1024,
+    )} КБ`;
+  }
+
+  return `${(
+    size /
+    (1024 * 1024)
+  ).toFixed(1)} МБ`;
+}
+
 export default function ReportPage() {
-  const [regionName, setRegionName] = React.useState("");
+  const formRef =
+    React.useRef<HTMLFormElement | null>(
+      null,
+    );
+
+  const photoInputRef =
+    React.useRef<HTMLInputElement | null>(
+      null,
+    );
+
+  const [regionName, setRegionName] =
+    React.useState("");
+
   const [coordinates, setCoordinates] =
-    React.useState<LngLat | null>(null);
+    React.useState<LngLat | null>(
+      null,
+    );
 
-  const [photos, setPhotos] = React.useState<File[]>([]);
-  const [isSubmitted, setIsSubmitted] = React.useState(false);
+  const [address, setAddress] =
+    React.useState("");
 
-  const selectedRegion = findRegion(regionName);
+  const [photos, setPhotos] =
+    React.useState<File[]>([]);
+
+  const [
+    isSubmitting,
+    setIsSubmitting,
+  ] = React.useState(false);
+
+  const [
+    submitError,
+    setSubmitError,
+  ] =
+    React.useState<string | null>(
+      null,
+    );
+
+  const [
+    photoError,
+    setPhotoError,
+  ] =
+    React.useState<string | null>(
+      null,
+    );
+
+  const [
+    complaintId,
+    setComplaintId,
+  ] =
+    React.useState<string | null>(
+      null,
+    );
+
+  const selectedRegion =
+    findRegion(regionName);
 
   function handleRegionChange(
     event: React.ChangeEvent<HTMLSelectElement>,
   ): void {
-    setRegionName(event.target.value);
+    setRegionName(
+      event.target.value,
+    );
+
     setCoordinates(null);
+    setAddress("");
+    setSubmitError(null);
   }
 
   function handlePhotoChange(
     event: React.ChangeEvent<HTMLInputElement>,
   ): void {
-    const selectedFiles = Array.from(
-      event.target.files ?? [],
-    ).slice(0, 5);
+    const selectedFiles =
+      Array.from(
+        event.target.files ?? [],
+      );
+
+    setPhotoError(null);
+    setSubmitError(null);
+
+    if (
+      selectedFiles.length >
+      MAX_PHOTOS
+    ) {
+      setPhotoError(
+        `Можно загрузить не более ${MAX_PHOTOS} фотографий.`,
+      );
+
+      setPhotos([]);
+      event.target.value = "";
+
+      return;
+    }
+
+    for (const file of selectedFiles) {
+      if (
+        !ALLOWED_IMAGE_TYPES.has(
+          file.type,
+        )
+      ) {
+        setPhotoError(
+          `Файл «${file.name}» имеет неподдерживаемый формат.`,
+        );
+
+        setPhotos([]);
+        event.target.value = "";
+
+        return;
+      }
+
+      if (file.size === 0) {
+        setPhotoError(
+          `Файл «${file.name}» пустой.`,
+        );
+
+        setPhotos([]);
+        event.target.value = "";
+
+        return;
+      }
+
+      if (
+        file.size >
+        MAX_FILE_SIZE
+      ) {
+        setPhotoError(
+          `Размер файла «${file.name}» превышает 10 МБ.`,
+        );
+
+        setPhotos([]);
+        event.target.value = "";
+
+        return;
+      }
+    }
 
     setPhotos(selectedFiles);
   }
 
-  function handleSubmit(
-    event: React.FormEvent<HTMLFormElement>,
+  function removePhoto(
+    photoToRemove: File,
   ): void {
+    setPhotos(
+      (currentPhotos) =>
+        currentPhotos.filter(
+          (photo) =>
+            getFileKey(photo) !==
+            getFileKey(
+              photoToRemove,
+            ),
+        ),
+    );
+
+    setPhotoError(null);
+
+    if (
+      photoInputRef.current
+    ) {
+      photoInputRef.current.value =
+        "";
+    }
+  }
+
+  function resetForm(): void {
+    formRef.current?.reset();
+
+    setRegionName("");
+    setCoordinates(null);
+    setAddress("");
+    setPhotos([]);
+    setComplaintId(null);
+    setSubmitError(null);
+    setPhotoError(null);
+    setIsSubmitting(false);
+
+    if (
+      photoInputRef.current
+    ) {
+      photoInputRef.current.value =
+        "";
+    }
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  }
+
+  async function handleSubmit(
+    event: React.FormEvent<HTMLFormElement>,
+  ): Promise<void> {
     event.preventDefault();
 
-    if (!coordinates) {
+    if (isSubmitting) {
       return;
     }
 
-    setIsSubmitted(true);
+    setSubmitError(null);
+    setPhotoError(null);
+
+    if (!selectedRegion) {
+      setSubmitError(
+        "Выберите регион, в котором обнаружено нарушение.",
+      );
+
+      return;
+    }
+
+    if (!coordinates) {
+      setSubmitError(
+        "Укажите место нарушения на карте.",
+      );
+
+      return;
+    }
+
+    if (!address.trim()) {
+      setSubmitError(
+        "Не удалось определить адрес выбранной точки. Выберите место на карте повторно.",
+      );
+
+      return;
+    }
+
+    if (photos.length === 0) {
+      setPhotoError(
+        "Добавьте хотя бы одну фотографию.",
+      );
+
+      return;
+    }
+
+    const formData =
+      new FormData(
+        event.currentTarget,
+      );
+
+    formData.set(
+      "region",
+      selectedRegion.name,
+    );
+
+    formData.set(
+      "address",
+      address.trim(),
+    );
+
+    formData.set(
+      "latitude",
+      String(coordinates[1]),
+    );
+
+    formData.set(
+      "longitude",
+      String(coordinates[0]),
+    );
+
+    formData.delete("photos");
+
+    for (const photo of photos) {
+      formData.append(
+        "photos",
+        photo,
+      );
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(
+        "/api/complaints",
+        {
+          method: "POST",
+          body: formData,
+        },
+      );
+
+      let result: ComplaintApiResponse;
+
+      try {
+        result =
+          (await response.json()) as ComplaintApiResponse;
+      } catch {
+        throw new Error(
+          "Сервер вернул некорректный ответ.",
+        );
+      }
+
+      if (
+        !response.ok ||
+        !result.success
+      ) {
+        throw new Error(
+          result.error ||
+            "Не удалось отправить обращение.",
+        );
+      }
+
+      if (!result.complaintId) {
+        throw new Error(
+          "Обращение создано, но сервер не вернул его номер.",
+        );
+      }
+
+      setComplaintId(
+        result.complaintId,
+      );
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    } catch (error) {
+      console.error(
+        "Complaint form submission error:",
+        error,
+      );
+
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : "Не удалось отправить обращение. Попробуйте ещё раз.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
-  if (isSubmitted) {
+  if (complaintId) {
     return (
       <main className="min-h-screen bg-neutral-950 text-white">
         <SectionHeader current="/map" />
 
-        <section className="mx-auto flex min-h-[70vh] max-w-3xl items-center px-4 py-16 md:px-6">
-          <div className="w-full rounded-[32px] border border-white/10 bg-white/[0.05] p-7 text-center shadow-2xl backdrop-blur-2xl md:p-12">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-lime-400 text-3xl text-neutral-950">
+        <section className="mx-auto flex min-h-[72vh] max-w-3xl items-center px-4 py-10 md:px-6 md:py-16">
+          <div className="w-full rounded-[26px] border border-white/10 bg-white/[0.05] p-6 text-center shadow-2xl backdrop-blur-2xl md:rounded-[32px] md:p-12">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-lime-400 text-2xl font-black text-neutral-950 md:h-16 md:w-16 md:text-3xl">
               ✓
             </div>
 
-            <h1 className="mt-6 text-3xl font-bold md:text-4xl">
-              Форма заполнена
+            <h1 className="mt-5 text-2xl font-bold md:mt-6 md:text-4xl">
+              Обращение отправлено
             </h1>
 
-            <p className="mx-auto mt-4 max-w-xl leading-7 text-white/60">
-              Интерфейс подачи обращения работает. Следующим
-              этапом подключим сохранение данных и фотографий в
-              Sanity.
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-white/60 md:mt-4 md:text-base md:leading-7">
+              Мы получили информацию
+              о нарушении. Обращение
+              направлено на модерацию
+              и появится на Экокарте
+              после проверки.
             </p>
 
-            <Link
-              className="mt-8 inline-flex rounded-full bg-lime-400 px-7 py-4 font-semibold text-neutral-950 transition hover:bg-lime-300"
-              href="/map"
-            >
-              Вернуться к Экокарте
-            </Link>
+            <div className="mx-auto mt-5 max-w-sm rounded-2xl border border-lime-400/20 bg-lime-400/[0.06] px-4 py-4 md:mt-7 md:px-5 md:py-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
+                Номер обращения
+              </p>
+
+              <p className="mt-2 text-xl font-bold tracking-wide text-lime-300 md:text-2xl">
+                {complaintId}
+              </p>
+
+              <p className="mt-2 text-xs leading-5 text-white/40 md:text-sm md:leading-6">
+                Сохраните этот номер.
+                Он поможет
+                идентифицировать ваше
+                обращение.
+              </p>
+            </div>
+
+            <div className="mt-6 flex flex-col justify-center gap-2.5 sm:flex-row md:mt-8 md:gap-3">
+              <Link
+                className="inline-flex items-center justify-center rounded-full bg-lime-400 px-6 py-3.5 text-sm font-semibold text-neutral-950 transition hover:bg-lime-300 md:px-7 md:py-4 md:text-base"
+                href="/map"
+              >
+                Вернуться к Экокарте
+              </Link>
+
+              <button
+                className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/[0.04] px-6 py-3.5 text-sm font-semibold text-white transition hover:border-white/25 hover:bg-white/[0.08] md:px-7 md:py-4 md:text-base"
+                onClick={resetForm}
+                type="button"
+              >
+                Отправить ещё одно
+              </button>
+            </div>
           </div>
         </section>
 
@@ -237,43 +3110,73 @@ export default function ReportPage() {
     <main className="min-h-screen bg-neutral-950 text-white">
       <SectionHeader current="/map" />
 
-      <section className="mx-auto max-w-5xl px-4 pb-20 pt-8 md:px-6 md:pb-28 md:pt-20">
+      <section className="mx-auto max-w-5xl px-3 pb-14 pt-3 sm:px-4 md:px-6 md:pb-28 md:pt-20">
         <div className="text-center">
           <Link
-            className="inline-flex items-center gap-2 text-sm text-white/45 transition hover:text-white"
+            className="inline-flex items-center gap-2 text-xs text-white/45 transition hover:text-white md:text-sm"
             href="/map"
           >
-            <span aria-hidden="true">←</span>
+            <span aria-hidden="true">
+              ←
+            </span>
+
             Вернуться к Экокарте
           </Link>
 
-          <h1 className="mt-6 text-3xl font-bold tracking-tight md:text-5xl">
+          <h1 className="mt-3 text-2xl font-bold tracking-tight md:mt-6 md:text-5xl">
             Сообщить о нарушении
           </h1>
 
-          <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-white/55 md:text-lg">
-            Опишите экологическую проблему и укажите точное
-            место на карте.
+          <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-white/55 md:mt-4 md:text-lg md:leading-7">
+            Опишите экологическую
+            проблему, приложите
+            фотографии и укажите
+            точное место на карте.
           </p>
         </div>
 
         <form
-          className="mt-10 rounded-[30px] border border-white/10 bg-white/[0.035] p-5 shadow-[0_35px_120px_rgba(0,0,0,0.45)] backdrop-blur-2xl md:mt-14 md:rounded-[38px] md:p-10"
-          onSubmit={handleSubmit}
+          className="
+            mt-5
+            rounded-[22px]
+            border
+            border-white/10
+            bg-white/[0.035]
+            p-4
+            shadow-[0_35px_120px_rgba(0,0,0,0.45)]
+            backdrop-blur-2xl
+            md:mt-14
+            md:rounded-[38px]
+            md:p-10
+          "
+          encType="multipart/form-data"
+          onSubmit={(event) => {
+            void handleSubmit(
+              event,
+            );
+          }}
+          ref={formRef}
         >
-          <div className="space-y-7">
+          <div className="space-y-4 md:space-y-7">
             <div>
               <label
-                className="mb-3 block text-base font-semibold"
+                className="mb-1.5 block text-sm font-semibold md:mb-3 md:text-base"
                 htmlFor="title"
               >
                 Название проблемы
               </label>
 
               <input
-                className={fieldClassName}
+                autoComplete="off"
+                className={
+                  fieldClassName
+                }
+                disabled={
+                  isSubmitting
+                }
                 id="title"
                 maxLength={140}
+                minLength={5}
                 name="title"
                 placeholder="Например: незаконная свалка возле леса"
                 required
@@ -283,16 +3186,20 @@ export default function ReportPage() {
 
             <div>
               <label
-                className="mb-3 block text-base font-semibold"
+                className="mb-1.5 block text-sm font-semibold md:mb-3 md:text-base"
                 htmlFor="description"
               >
                 Описание проблемы
               </label>
 
               <textarea
-                className={`${fieldClassName} min-h-40 resize-y`}
+                className={`${fieldClassName} min-h-28 resize-y md:min-h-40`}
+                disabled={
+                  isSubmitting
+                }
                 id="description"
                 maxLength={3000}
+                minLength={20}
                 name="description"
                 placeholder="Расскажите, что произошло, как давно существует нарушение и что находится рядом"
                 required
@@ -301,199 +3208,329 @@ export default function ReportPage() {
 
             <div>
               <label
-                className="mb-3 block text-base font-semibold"
+                className="mb-1.5 block text-sm font-semibold md:mb-3 md:text-base"
                 htmlFor="category"
               >
                 Категория нарушения
               </label>
 
               <select
-                className={fieldClassName}
+                className={
+                  fieldClassName
+                }
                 defaultValue=""
+                disabled={
+                  isSubmitting
+                }
                 id="category"
                 name="category"
                 required
               >
-                <option disabled value="">
+                <option
+                  className="bg-neutral-900"
+                  disabled
+                  value=""
+                >
                   Выберите категорию
                 </option>
 
-                {COMPLAINT_CATEGORIES.map((category) => (
-                  <option
-                    className="bg-neutral-900"
-                    key={category}
-                    value={category}
-                  >
-                    {category}
-                  </option>
-                ))}
+                {COMPLAINT_CATEGORIES.map(
+                  (category) => (
+                    <option
+                      className="bg-neutral-900"
+                      key={
+                        category.value
+                      }
+                      value={
+                        category.value
+                      }
+                    >
+                      {
+                        category.title
+                      }
+                    </option>
+                  ),
+                )}
               </select>
             </div>
 
             <div>
               <label
-                className="mb-3 block text-base font-semibold"
+                className="mb-1.5 block text-sm font-semibold md:mb-3 md:text-base"
                 htmlFor="region"
               >
                 Регион
               </label>
 
               <select
-                className={fieldClassName}
+                className={
+                  fieldClassName
+                }
+                disabled={
+                  isSubmitting
+                }
                 id="region"
                 name="region"
-                onChange={handleRegionChange}
+                onChange={
+                  handleRegionChange
+                }
                 required
                 value={regionName}
               >
-                <option disabled value="">
+                <option
+                  className="bg-neutral-900"
+                  disabled
+                  value=""
+                >
                   Выберите регион
                 </option>
 
-                {REGIONS.map((region) => (
-                  <option
-                    className="bg-neutral-900"
-                    key={region.name}
-                    value={region.name}
-                  >
-                    {region.name}
-                  </option>
-                ))}
+                {REGIONS.map(
+                  (region) => (
+                    <option
+                      className="bg-neutral-900"
+                      key={region.name}
+                      value={
+                        region.name
+                      }
+                    >
+                      {region.name}
+                    </option>
+                  ),
+                )}
               </select>
             </div>
 
             {selectedRegion ? (
               <div className="animate-[fadeIn_.35s_ease-out]">
-                <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-                  <label className="block text-base font-semibold">
-                    Место нарушения
-                  </label>
-
-                  <span className="text-sm text-white/40">
-                    Укажите адрес или поставьте маркер
-                  </span>
+                <div
+                  className={
+                    isSubmitting
+                      ? "pointer-events-none opacity-60"
+                      : ""
+                  }
+                >
+                  <LocationPicker
+                    key={
+                      selectedRegion.name
+                    }
+                    onAddressChange={
+                      setAddress
+                    }
+                    onChange={
+                      setCoordinates
+                    }
+                    region={
+                      selectedRegion
+                    }
+                    value={
+                      coordinates
+                    }
+                  />
                 </div>
 
-                <LocationPicker
-                  key={selectedRegion.name}
-                  onChange={setCoordinates}
-                  region={selectedRegion}
-                  value={coordinates}
+                <input
+                  name="address"
+                  type="hidden"
+                  value={address}
                 />
 
                 <input
                   name="latitude"
                   type="hidden"
-                  value={coordinates?.[1] ?? ""}
+                  value={
+                    coordinates?.[1] ??
+                    ""
+                  }
                 />
 
                 <input
                   name="longitude"
                   type="hidden"
-                  value={coordinates?.[0] ?? ""}
+                  value={
+                    coordinates?.[0] ??
+                    ""
+                  }
                 />
 
                 {!coordinates && (
-                  <p className="mt-3 text-sm text-amber-300/80">
-                    Для отправки обращения необходимо отметить
-                    место нарушения.
+                  <p className="mt-2 text-xs leading-5 text-amber-300/80 md:mt-3 md:text-sm">
+                    Для отправки
+                    обращения необходимо
+                    отметить место
+                    нарушения.
                   </p>
                 )}
+
+                {coordinates &&
+                  !address && (
+                    <p className="mt-2 text-xs leading-5 text-amber-300/80 md:mt-3 md:text-sm">
+                      Определяем адрес
+                      выбранной точки.
+                    </p>
+                  )}
               </div>
             ) : (
-              <div className="rounded-[26px] border border-dashed border-white/15 bg-white/[0.025] px-6 py-12 text-center">
-                <p className="font-medium text-white/65">
-                  Сначала выберите регион
+              <div className="rounded-[20px] border border-dashed border-white/15 bg-white/[0.025] px-5 py-7 text-center md:rounded-[26px] md:px-6 md:py-12">
+                <p className="text-sm font-medium text-white/65 md:text-base">
+                  Сначала выберите
+                  регион
                 </p>
 
-                <p className="mt-2 text-sm text-white/35">
-                  После этого здесь появится Яндекс Карта.
+                <p className="mt-1 text-xs text-white/35 md:mt-2 md:text-sm">
+                  После этого здесь
+                  появится Яндекс Карта.
                 </p>
               </div>
             )}
 
             <div>
               <label
-                className="mb-3 block text-base font-semibold"
+                className="mb-1.5 block text-sm font-semibold md:mb-3 md:text-base"
                 htmlFor="photos"
               >
                 Фотографии
               </label>
 
               <label
-                className="
+                className={`
                   flex
-                  min-h-48
-                  cursor-pointer
+                  min-h-32
                   flex-col
                   items-center
                   justify-center
-                  rounded-[26px]
+                  rounded-[20px]
                   border
                   border-dashed
-                  border-white/15
-                  bg-white/[0.025]
-                  px-6
-                  py-8
+                  px-4
+                  py-5
                   text-center
                   transition
-                  hover:border-lime-400/50
-                  hover:bg-lime-400/[0.04]
-                "
+                  md:min-h-48
+                  md:rounded-[26px]
+                  md:px-6
+                  md:py-8
+                  ${
+                    isSubmitting
+                      ? "cursor-not-allowed border-white/10 bg-white/[0.02] opacity-50"
+                      : "cursor-pointer border-white/15 bg-white/[0.025] hover:border-lime-400/50 hover:bg-lime-400/[0.04]"
+                  }
+                `}
                 htmlFor="photos"
               >
-                <span className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.07] text-2xl">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.07] text-xl md:h-12 md:w-12 md:text-2xl">
                   +
                 </span>
 
-                <span className="mt-4 font-semibold">
+                <span className="mt-2 text-sm font-semibold md:mt-4 md:text-base">
                   Добавить фотографии
                 </span>
 
-                <span className="mt-2 text-sm text-white/40">
-                  До 5 файлов
+                <span className="mt-1 text-xs text-white/40 md:mt-2 md:text-sm">
+                  От 1 до 5 файлов,
+                  не более 10 МБ
+                  каждый
+                </span>
+
+                <span className="mt-0.5 text-[11px] text-white/30 md:mt-1 md:text-xs">
+                  JPEG, PNG, WEBP,
+                  HEIC
                 </span>
 
                 <input
-                  accept="image/jpeg,image/png,image/webp"
+                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
                   className="sr-only"
+                  disabled={
+                    isSubmitting
+                  }
                   id="photos"
                   multiple
                   name="photos"
-                  onChange={handlePhotoChange}
+                  onChange={
+                    handlePhotoChange
+                  }
+                  ref={
+                    photoInputRef
+                  }
                   type="file"
                 />
               </label>
 
-              {photos.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {photos.map((photo) => (
-                    <span
-                      className="max-w-full truncate rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-sm text-white/65"
-                      key={`${photo.name}-${photo.lastModified}`}
-                    >
-                      {photo.name}
-                    </span>
-                  ))}
+              {photoError && (
+                <p className="mt-2 text-xs leading-5 text-red-300 md:mt-3 md:text-sm md:leading-6">
+                  {photoError}
+                </p>
+              )}
+
+              {photos.length >
+                0 && (
+                <div className="mt-3 space-y-1.5 md:mt-4 md:space-y-2">
+                  {photos.map(
+                    (photo) => (
+                      <div
+                        className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.045] px-3 py-2.5 md:gap-4 md:rounded-2xl md:px-4 md:py-3"
+                        key={getFileKey(
+                          photo,
+                        )}
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-medium text-white/75 md:text-sm">
+                            {
+                              photo.name
+                            }
+                          </p>
+
+                          <p className="mt-0.5 text-[11px] text-white/35 md:mt-1 md:text-xs">
+                            {formatFileSize(
+                              photo.size,
+                            )}
+                          </p>
+                        </div>
+
+                        <button
+                          aria-label={`Удалить фотографию ${photo.name}`}
+                          className="shrink-0 rounded-full border border-white/10 px-2.5 py-1 text-[11px] text-white/50 transition hover:border-red-300/30 hover:bg-red-400/10 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-40 md:px-3 md:py-1.5 md:text-xs"
+                          disabled={
+                            isSubmitting
+                          }
+                          onClick={() => {
+                            removePhoto(
+                              photo,
+                            );
+                          }}
+                          type="button"
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    ),
+                  )}
                 </div>
               )}
             </div>
 
-            <div className="grid gap-5 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2 md:gap-5">
               <div>
                 <label
-                  className="mb-3 block text-base font-semibold"
+                  className="mb-1.5 block text-sm font-semibold md:mb-3 md:text-base"
                   htmlFor="name"
                 >
                   Ваше имя
-                  <span className="ml-2 font-normal text-white/35">
+                  <span className="ml-1.5 text-xs font-normal text-white/35 md:ml-2 md:text-base">
                     необязательно
                   </span>
                 </label>
 
                 <input
-                  className={fieldClassName}
+                  autoComplete="name"
+                  className={
+                    fieldClassName
+                  }
+                  disabled={
+                    isSubmitting
+                  }
                   id="name"
+                  maxLength={150}
                   name="name"
                   placeholder="Как к вам обращаться"
                   type="text"
@@ -502,19 +3539,26 @@ export default function ReportPage() {
 
               <div>
                 <label
-                  className="mb-3 block text-base font-semibold"
+                  className="mb-1.5 block text-sm font-semibold md:mb-3 md:text-base"
                   htmlFor="phone"
                 >
                   Телефон
-                  <span className="ml-2 font-normal text-white/35">
+                  <span className="ml-1.5 text-xs font-normal text-white/35 md:ml-2 md:text-base">
                     необязательно
                   </span>
                 </label>
 
                 <input
-                  className={fieldClassName}
+                  autoComplete="tel"
+                  className={
+                    fieldClassName
+                  }
+                  disabled={
+                    isSubmitting
+                  }
                   id="phone"
                   inputMode="tel"
+                  maxLength={50}
                   name="phone"
                   placeholder="+7"
                   type="tel"
@@ -524,37 +3568,58 @@ export default function ReportPage() {
 
             <div>
               <label
-                className="mb-3 block text-base font-semibold"
+                className="mb-1.5 block text-sm font-semibold md:mb-3 md:text-base"
                 htmlFor="email"
               >
                 Электронная почта
-              </label>
-
-              <input
-                autoComplete="email"
-                className={fieldClassName}
-                id="email"
-                name="email"
-                placeholder="name@example.ru"
-                required
-                type="email"
-              />
-            </div>
-
-            <div>
-              <label
-                className="mb-3 block text-base font-semibold"
-                htmlFor="videoUrl"
-              >
-                Ссылка на видео
-                <span className="ml-2 font-normal text-white/35">
+                <span className="ml-1.5 text-xs font-normal text-white/35 md:ml-2 md:text-base">
                   необязательно
                 </span>
               </label>
 
               <input
-                className={fieldClassName}
+                autoComplete="email"
+                className={
+                  fieldClassName
+                }
+                disabled={
+                  isSubmitting
+                }
+                id="email"
+                maxLength={254}
+                name="email"
+                placeholder="name@example.ru"
+                type="email"
+              />
+
+              <p className="mt-1.5 text-xs leading-5 text-white/35 md:mt-2 md:text-sm md:leading-6">
+                Укажите телефон или
+                электронную почту, чтобы
+                мы могли связаться с
+                вами.
+              </p>
+            </div>
+
+            <div>
+              <label
+                className="mb-1.5 block text-sm font-semibold md:mb-3 md:text-base"
+                htmlFor="videoUrl"
+              >
+                Ссылка на видео
+                <span className="ml-1.5 text-xs font-normal text-white/35 md:ml-2 md:text-base">
+                  необязательно
+                </span>
+              </label>
+
+              <input
+                className={
+                  fieldClassName
+                }
+                disabled={
+                  isSubmitting
+                }
                 id="videoUrl"
+                maxLength={2048}
                 name="videoUrl"
                 placeholder="https://..."
                 type="url"
@@ -562,7 +3627,16 @@ export default function ReportPage() {
             </div>
           </div>
 
-          <div className="mt-10 border-t border-white/10 pt-7">
+          <div className="mt-6 border-t border-white/10 pt-5 md:mt-10 md:pt-7">
+            {submitError && (
+              <div
+                className="mb-4 rounded-xl border border-red-400/20 bg-red-400/[0.07] px-4 py-3 text-xs leading-5 text-red-200 md:mb-5 md:rounded-2xl md:px-5 md:py-4 md:text-sm md:leading-6"
+                role="alert"
+              >
+                {submitError}
+              </div>
+            )}
+
             <button
               className="
                 flex
@@ -571,9 +3645,9 @@ export default function ReportPage() {
                 justify-center
                 rounded-full
                 bg-lime-400
-                px-7
-                py-4
-                text-base
+                px-6
+                py-3.5
+                text-sm
                 font-bold
                 text-neutral-950
                 transition
@@ -581,24 +3655,40 @@ export default function ReportPage() {
                 disabled:cursor-not-allowed
                 disabled:bg-white/10
                 disabled:text-white/30
+                md:px-7
+                md:py-4
                 md:text-lg
               "
-              disabled={!coordinates}
+              disabled={
+                isSubmitting ||
+                !coordinates ||
+                !address ||
+                photos.length === 0
+              }
               type="submit"
             >
-              Отправить обращение
+              {isSubmitting
+                ? "Отправляем обращение…"
+                : "Отправить обращение"}
             </button>
 
-            <p className="mx-auto mt-4 max-w-2xl text-center text-xs leading-5 text-white/35">
-              Нажимая «Отправить обращение», вы соглашаетесь с{" "}
-              <Link
-                className="underline decoration-white/25 underline-offset-4 transition hover:text-white/65"
-                href="/privacy"
-              >
-                условиями обработки персональных данных
-              </Link>
-              .
-            </p>
+            <p className="mx-auto mt-3 max-w-2xl text-center text-[11px] leading-4 text-white/35 md:mt-4 md:text-xs md:leading-5">
+  Нажимая «Отправить обращение», вы соглашаетесь с{" "}
+  <Link
+    className="underline decoration-white/25 underline-offset-4 transition hover:text-white/65"
+    href="/privacy"
+  >
+    Политикой конфиденциальности
+  </Link>
+  {" "}и{" "}
+  <Link
+    className="underline decoration-white/25 underline-offset-4 transition hover:text-white/65"
+    href="/terms"
+  >
+    Пользовательским соглашением
+  </Link>
+  .
+</p>
           </div>
         </form>
       </section>
@@ -608,9 +3698,2861 @@ export default function ReportPage() {
   );
 }
 
-==================================================
-FILE: components/LocationPicker.tsx
-==================================================
+====================================================================================================
+./app/news/page.tsx
+====================================================================================================
+export default function News() {
+  return (
+    <main className="min-h-screen p-10">
+      <h1 className="text-5xl font-bold">
+        Новости
+      </h1>
+
+      <p className="mt-5 text-xl">
+        Экологические события и расследования.
+      </p>
+    </main>
+  );
+}
+
+====================================================================================================
+./app/page.tsx
+====================================================================================================
+import Footer from "@/components/Footer";
+import SectionCards from "@/components/SectionCards";
+import HomeHeader from "@/components/HomeHeader";
+
+
+export default function Home(){
+
+
+return (
+
+<main className="
+min-h-screen
+bg-neutral-950
+text-white
+">
+
+
+<HomeHeader />
+
+
+<section className="
+pt-0
+md:pt-6
+">
+
+
+<SectionCards />
+
+
+</section>
+
+
+
+<Footer />
+
+
+</main>
+
+)
+
+}
+
+====================================================================================================
+./app/posts/[slug]/page.tsx
+====================================================================================================
+import { client } from "@/sanity/lib/client";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+import ImageCarousel from "@/components/ImageCarousel";
+import BackButton from "@/components/BackButton";
+
+const query = `
+*[_type == "post" && slug.current == $slug][0]{
+  title,
+  images,
+  description,
+  date,
+  category
+}
+`;
+
+export default async function PostPage({
+  params,
+}: {
+  params: Promise<{
+    slug: string;
+  }>;
+}) {
+  const { slug } = await params;
+
+  const post = await client.fetch(query, {
+    slug,
+  });
+
+  if (!post) {
+    return (
+      <main className="min-h-screen bg-neutral-950 text-white p-10">
+        Публикация не найдена
+      </main>
+    );
+  }
+
+  return (
+    <main
+      className="
+        min-h-screen
+        bg-neutral-950
+        text-white
+      "
+    >
+      <Header />
+
+      <section
+        className="
+          max-w-[1000px]
+          mx-auto
+
+          px-4
+          md:px-6
+
+          pt-0
+          md:pt-1
+
+          pb-12
+        "
+      >
+        <BackButton />
+
+        <div
+          className="
+            mt-0
+            md:mt-1
+          "
+        >
+          <ImageCarousel
+            images={post.images}
+            title={post.title}
+          />
+        </div>
+
+        <p
+          className="
+            mt-8
+            md:mt-10
+
+            text-base
+            md:text-xl
+
+            text-white/70
+            leading-relaxed
+          "
+        >
+          {post.description}
+        </p>
+      </section>
+
+      <Footer />
+    </main>
+  );
+}
+
+====================================================================================================
+./app/posts/page.tsx
+====================================================================================================
+import {client} from "@/sanity/lib/client";
+import {urlFor} from "@/sanity/lib/image";
+import SectionHeader from "@/components/SectionHeader";
+import Footer from "@/components/Footer";
+import Link from "next/link";
+import Image from "next/image";
+
+
+const POSTS_PER_PAGE = 20;
+
+
+
+const query = `
+
+*[_type == "post"]
+| order(date desc)
+[$start...$end]
+{
+
+title,
+slug,
+images,
+description,
+date,
+category
+
+}
+
+`;
+
+
+
+const countQuery = `
+
+count(*[_type == "post"])
+
+`;
+
+
+
+
+
+export default async function PostsPage({
+
+searchParams,
+
+}:{
+
+searchParams: Promise<{
+page?: string
+}>
+
+}){
+
+
+const params = await searchParams;
+
+
+
+const currentPage =
+Number(params.page || "1");
+
+
+
+const start =
+(currentPage - 1) * POSTS_PER_PAGE;
+
+
+const end =
+start + POSTS_PER_PAGE;
+
+
+
+const [posts,totalPosts] =
+await Promise.all([
+
+
+client.fetch(
+query,
+{
+start,
+end
+}
+),
+
+
+client.fetch(
+countQuery
+)
+
+]);
+
+
+
+const totalPages =
+Math.ceil(
+totalPosts / POSTS_PER_PAGE
+);
+
+
+
+
+return (
+
+<main
+
+className="
+min-h-screen
+bg-neutral-950
+text-white
+"
+
+>
+
+
+<SectionHeader
+
+current="/posts"
+
+searchAction="/posts/search"
+
+searchPlaceholder="Поиск публикаций..."
+
+ />
+
+
+
+
+
+<section
+
+className="
+max-w-[1400px]
+mx-auto
+px-3
+md:px-6
+pt-2
+md:pt-12
+pb-6
+md:pb-12
+"
+
+>
+
+
+<h1
+
+className="
+text-4xl
+font-bold
+"
+
+>
+
+Публикации
+
+</h1>
+
+
+
+<p
+
+className="
+mt-4
+text-lg
+text-white/60
+"
+
+>
+
+Короткие экологические материалы,
+факты и визуальные истории.
+
+</p>
+
+
+
+
+
+
+
+<div
+
+className="
+grid
+grid-cols-2
+lg:grid-cols-3
+xl:grid-cols-4
+gap-3
+md:gap-6
+mt-10
+"
+
+>
+
+
+{
+
+
+posts.map((post:any)=>(
+
+
+<Link
+
+key={post.slug.current}
+
+href={`/posts/${post.slug.current}`}
+
+>
+
+
+
+<article
+
+className="
+bg-white/10
+rounded-2xl
+overflow-hidden
+border
+border-white/10
+hover:scale-[1.03]
+transition
+duration-300
+backdrop-blur-xl
+"
+
+>
+
+
+
+
+
+{
+
+post.images?.[0] && (
+
+<div
+
+className="
+relative
+w-full
+aspect-[3/4]
+bg-black/20
+overflow-hidden
+rounded-t-2xl
+"
+
+>
+
+
+
+<Image
+
+
+src={
+
+urlFor(post.images[0])
+.width(900)
+.height(1200)
+.auto("format")
+.url()
+
+}
+
+
+alt={post.title}
+
+
+fill
+
+
+sizes="
+(max-width:768px) 50vw,
+(max-width:1200px) 33vw,
+25vw
+"
+
+
+className="
+object-contain
+"
+
+
+
+
+/>
+
+
+
+</div>
+
+
+)
+
+}
+
+
+
+
+
+
+
+<div
+
+className="
+p-3
+md:p-4
+"
+
+>
+
+
+
+<h2
+
+className="
+text-sm
+md:text-xl
+font-bold
+line-clamp-2
+leading-tight
+"
+
+>
+
+{post.title}
+
+</h2>
+
+
+
+
+
+<p
+
+className="
+mt-2
+text-xs
+md:text-sm
+text-white/60
+line-clamp-3
+"
+
+>
+
+{post.description}
+
+</p>
+
+
+
+</div>
+
+
+
+
+</article>
+
+
+
+</Link>
+
+
+))
+
+
+}
+
+
+
+</div>
+
+
+
+
+
+
+
+
+
+{
+
+totalPages > 1 && (
+
+
+<div
+
+className="
+flex
+justify-center
+gap-2
+mt-12
+flex-wrap
+"
+
+>
+
+
+{
+
+
+Array.from({
+
+length: totalPages
+
+}).map((_,index)=>{
+
+
+const page=index+1;
+
+
+
+return (
+
+<Link
+
+key={page}
+
+href={`/posts?page=${page}`}
+
+className="
+px-4
+py-2
+rounded-full
+text-sm
+border
+border-white/20
+bg-white/10
+hover:bg-white/20
+transition
+"
+
+>
+
+{page}
+
+</Link>
+
+
+)
+
+
+})
+
+
+}
+
+
+
+</div>
+
+
+)
+
+
+}
+
+
+
+</section>
+
+
+
+
+
+
+<Footer />
+
+
+
+</main>
+
+
+)
+
+}
+
+====================================================================================================
+./app/science/page.tsx
+====================================================================================================
+export default function Science() {
+  return (
+    <main className="min-h-screen p-10">
+      <h1 className="text-5xl font-bold">
+        Научные публикации
+      </h1>
+
+      <p className="mt-5 text-xl">
+        Разборы животных, экологии и научных открытий.
+      </p>
+    </main>
+  );
+}
+
+====================================================================================================
+./app/studio/[[...tool]]/page.tsx
+====================================================================================================
+/**
+ * This route is responsible for the built-in authoring environment using Sanity Studio.
+ * All routes under your studio path is handled by this file using Next.js' catch-all routes:
+ * https://nextjs.org/docs/routing/dynamic-routes#catch-all-routes
+ *
+ * You can learn more about the next-sanity package here:
+ * https://github.com/sanity-io/next-sanity
+ */
+
+import { NextStudio } from 'next-sanity/studio'
+import config from '../../../sanity.config'
+
+export const dynamic = 'force-static'
+
+export { metadata, viewport } from 'next-sanity/studio'
+
+export default function StudioPage() {
+  return <NextStudio config={config} />
+}
+
+
+====================================================================================================
+./app/videos/[slug]/page.tsx
+====================================================================================================
+import { client } from "@/sanity/lib/client";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+
+
+const query = `
+*[_type == "video" && slug.current == $slug][0]{
+  title,
+  description,
+  youtubeUrl,
+  date
+}
+`;
+
+
+function getYoutubeId(url: string) {
+
+  if (!url) return null;
+
+
+  if (url.includes("shorts/")) {
+    return url.split("shorts/")[1].split("?")[0];
+  }
+
+
+  if (url.includes("watch?v=")) {
+    return url.split("watch?v=")[1].split("&")[0];
+  }
+
+
+  if (url.includes("youtu.be/")) {
+    return url.split("youtu.be/")[1].split("?")[0];
+  }
+
+
+  return null;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{slug: string}>
+}) {
+
+
+  const {slug} = await params;
+
+
+  const video = await client.fetch(query, {
+    slug,
+  });
+
+
+  if (!video) {
+
+    return {
+      title: "Видео не найдено"
+    }
+
+  }
+
+
+  const youtubeId = getYoutubeId(video.youtubeUrl);
+
+
+  const previewImage = youtubeId
+    ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`
+    : undefined;
+
+
+  return {
+
+    title: video.title,
+
+    description: video.description,
+
+    openGraph: {
+
+      title: video.title,
+
+      description: video.description,
+
+      images: previewImage ? [previewImage] : undefined,
+
+      type: "video.other"
+
+    },
+
+    twitter: {
+
+      card: "summary_large_image",
+
+      title: video.title,
+
+      description: video.description,
+
+      images: previewImage ? [previewImage] : undefined
+
+    }
+
+  }
+
+}
+
+export default async function VideoPage({
+  params,
+}: {
+  params: Promise<{slug: string}>
+}) {
+
+
+  const {slug} = await params;
+
+
+  const video = await client.fetch(query, {
+    slug,
+  });
+
+
+
+  if (!video) {
+
+    return (
+      <main className="min-h-screen bg-neutral-950 text-white p-10">
+
+        Видео не найдено
+
+      </main>
+    );
+
+  }
+
+
+
+  const youtubeId = getYoutubeId(video.youtubeUrl);
+
+
+
+  return (
+
+    <main className="min-h-screen bg-neutral-950 text-white">
+
+
+      <Header />
+
+
+      <section
+        className="
+        max-w-[1200px]
+        mx-auto
+        px-6
+        md:px-10
+        py-16
+        "
+      >
+
+
+        <div className="grid md:grid-cols-[400px_1fr] gap-12 items-start">
+
+
+          <div
+            className="
+            rounded-3xl
+            overflow-hidden
+            bg-black
+            aspect-[9/16]
+            "
+          >
+
+            <iframe
+
+              src={`https://www.youtube.com/embed/${youtubeId}`}
+
+              className="
+              w-full
+              h-full
+              "
+
+              allowFullScreen
+
+            />
+
+          </div>
+
+
+
+          <div>
+
+
+            <h1 className="text-5xl font-bold">
+
+              {video.title}
+
+            </h1>
+
+
+
+            <p
+              className="
+              mt-8
+              text-xl
+              text-white/70
+              "
+            >
+
+              {video.description}
+
+            </p>
+
+
+
+            <div
+              className="
+              mt-6
+              text-white/40
+              "
+            >
+
+              {video.date}
+
+            </div>
+
+
+          </div>
+
+
+        </div>
+
+
+      </section>
+
+
+      <Footer />
+
+
+    </main>
+
+  );
+
+}
+
+====================================================================================================
+./app/videos/page.tsx
+====================================================================================================
+import {client} from "@/sanity/lib/client";
+import VideoCard from "@/components/VideoCard";
+import SectionHeader from "@/components/SectionHeader";
+import Footer from "@/components/Footer";
+
+
+const VIDEOS_PER_PAGE = 20;
+
+
+
+const query = `
+
+*[
+_type == "video" &&
+defined(slug.current) &&
+(
+!defined($search)
+||
+title match $search
+||
+description match $search
+)
+
+]
+| order(date desc)
+[$start...$end]
+{
+
+_id,
+title,
+description,
+youtubeUrl,
+date,
+slug
+
+}
+
+`;
+
+
+
+const countQuery = `
+
+count(*[
+_type == "video" &&
+defined(slug.current) &&
+(
+!defined($search)
+||
+title match $search
+||
+description match $search
+)
+
+])
+
+`;
+
+
+
+
+
+
+
+export default async function Videos({
+
+searchParams,
+
+}:{
+
+searchParams: Promise<{
+search?: string;
+page?: string;
+}>
+
+}) {
+
+
+
+const params = await searchParams;
+
+
+
+const search = params.search
+? `*${params.search}*`
+: null;
+
+
+
+const currentPage =
+Number(params.page || "1");
+
+
+
+const start =
+(currentPage - 1) * VIDEOS_PER_PAGE;
+
+
+
+const end =
+start + VIDEOS_PER_PAGE;
+
+
+
+
+
+
+
+const [videos,totalVideos] =
+
+await Promise.all([
+
+
+
+client.fetch(
+
+query,
+
+{
+
+search,
+
+start,
+
+end
+
+}
+
+),
+
+
+
+client.fetch(
+
+countQuery,
+
+{
+
+search
+
+}
+
+)
+
+
+]);
+
+
+
+
+
+
+
+
+const totalPages = Math.ceil(
+
+totalVideos / VIDEOS_PER_PAGE
+
+);
+
+
+
+
+
+
+
+return (
+
+<main
+
+className="
+min-h-screen
+bg-neutral-950
+text-white
+"
+
+>
+
+
+
+
+
+<SectionHeader
+
+current="/videos"
+
+searchAction="/videos"
+
+searchPlaceholder="Поиск видео..."
+
+ />
+
+
+
+
+
+
+
+
+
+<section
+
+className="
+max-w-[1400px]
+mx-auto
+px-3
+md:px-10
+pt-2
+md:pt-16
+pb-6
+md:pb-16
+"
+
+>
+
+
+
+
+
+<h1
+
+className="
+text-3xl
+md:text-5xl
+font-bold
+"
+
+>
+
+Видео
+
+</h1>
+
+
+
+
+
+
+
+
+
+<div
+
+className="
+grid
+grid-cols-2
+lg:grid-cols-4
+gap-3
+md:gap-8
+mt-6
+md:mt-12
+"
+
+>
+
+
+
+
+
+{
+
+videos.length > 0 ? (
+
+
+
+videos.map((video:any)=>(
+
+
+
+<VideoCard
+
+key={video._id}
+
+{...video}
+
+/>
+
+
+))
+
+
+)
+
+:
+
+(
+
+
+<p
+
+className="
+text-white/50
+mt-10
+"
+
+>
+
+Ничего не найдено
+
+</p>
+
+
+)
+
+
+}
+
+
+
+
+
+</div>
+
+
+
+
+
+
+
+
+
+{
+
+totalPages > 1 && (
+
+
+
+<div
+
+className="
+flex
+justify-center
+gap-2
+mt-12
+flex-wrap
+"
+
+>
+
+
+
+
+
+{
+
+Array.from({
+
+length: totalPages
+
+}).map((_,index)=>{
+
+
+const page = index + 1;
+
+
+
+return (
+
+
+
+<a
+
+key={page}
+
+href={
+
+search
+
+?
+
+`/videos?page=${page}&search=${params.search}`
+
+:
+
+`/videos?page=${page}`
+
+}
+
+className={`
+
+px-4
+py-2
+rounded-full
+text-sm
+border
+transition
+
+
+${
+
+currentPage === page
+
+?
+
+"bg-white text-black border-white"
+
+:
+
+"bg-white/10 text-white border-white/20 hover:bg-white/20"
+
+}
+
+`}
+
+>
+
+{page}
+
+</a>
+
+
+)
+
+
+})
+
+
+}
+
+
+
+
+
+</div>
+
+
+)
+
+
+}
+
+
+
+
+
+</section>
+
+
+
+
+
+
+
+<Footer />
+
+
+
+
+
+
+</main>
+
+)
+
+}
+
+====================================================================================================
+./components/BackButton.tsx
+====================================================================================================
+"use client";
+
+import { useRouter } from "next/navigation";
+
+export default function BackButton() {
+  const router = useRouter();
+
+  return (
+    <button
+      onClick={() => router.back()}
+      className="
+        flex
+        items-center
+        gap-2
+
+        rounded-full
+
+        bg-white/10
+        backdrop-blur-2xl
+
+        border
+        border-white/20
+
+        px-5
+        py-2.5
+
+        text-white
+        font-medium
+
+        shadow-[0_8px_30px_rgba(255,255,255,0.08)]
+
+        hover:bg-white/20
+        hover:scale-105
+
+        transition
+        duration-300
+      "
+    >
+      <span className="text-lg">←</span>
+      <span>Назад</span>
+    </button>
+  );
+}
+
+====================================================================================================
+./components/ContactButtons.tsx
+====================================================================================================
+"use client";
+
+
+import {useState} from "react";
+
+
+
+export default function ContactButtons({
+
+youtube,
+instagram,
+tiktok,
+telegram,
+email,
+phone
+
+}:{
+
+youtube?:string;
+instagram?:string;
+tiktok?:string;
+telegram?:string;
+email?:string;
+phone?:string;
+
+}){
+
+
+const [showEmail,setShowEmail] = useState(false);
+
+const [copied,setCopied] = useState(false);
+
+
+
+
+async function handleEmail(){
+
+
+if(!email) return;
+
+
+
+if(!showEmail){
+
+setShowEmail(true);
+
+return;
+
+}
+
+
+
+await navigator.clipboard.writeText(email);
+
+
+setCopied(true);
+
+
+setTimeout(()=>{
+
+setCopied(false);
+
+},2000);
+
+
+
+}
+
+
+
+
+
+const socials=[
+
+{
+name:"YouTube",
+link:youtube,
+icon:"/icons/youtube.svg"
+},
+
+{
+name:"Instagram",
+link:instagram,
+icon:"/icons/instagram.svg"
+},
+
+{
+name:"TikTok",
+link:tiktok,
+icon:"/icons/tiktok.svg"
+},
+
+{
+name:"Telegram",
+link:telegram,
+icon:"/icons/telegram.svg"
+},
+
+];
+
+
+
+
+
+return (
+
+<div
+className="
+mt-8
+space-y-4
+"
+>
+
+
+
+{
+
+socials.map((item)=>(
+
+
+item.link && (
+
+<a
+
+key={item.name}
+
+href={item.link}
+
+target="_blank"
+
+rel="noopener noreferrer"
+
+className="
+flex
+items-center
+gap-4
+rounded-2xl
+bg-white/10
+border
+border-white/20
+px-6
+py-4
+backdrop-blur-xl
+hover:bg-white/20
+transition
+"
+
+>
+
+
+<img
+
+src={item.icon}
+
+alt={item.name}
+
+className="
+w-6
+h-6
+object-contain
+"
+
+/>
+
+
+
+<span>
+
+{item.name}
+
+</span>
+
+
+</a>
+
+)
+
+
+))
+
+
+}
+
+
+
+
+{
+
+
+email && (
+
+
+<button
+
+onClick={handleEmail}
+
+className="
+flex
+items-center
+gap-4
+w-full
+rounded-2xl
+bg-white/10
+border
+border-white/20
+px-6
+py-4
+backdrop-blur-xl
+hover:bg-white/20
+transition
+text-left
+"
+
+>
+
+
+<img
+
+src="/icons/email.svg"
+
+alt="Email"
+
+className="
+w-6
+h-6
+object-contain
+"
+
+/>
+
+
+
+<span>
+
+{
+
+copied
+
+?
+
+"Скопировано"
+
+:
+
+showEmail
+
+?
+
+email
+
+:
+
+"Email"
+
+}
+
+</span>
+
+
+
+</button>
+
+
+)
+
+}
+
+
+
+
+
+{
+
+
+phone && (
+
+
+<div
+
+className="
+flex
+items-center
+gap-4
+rounded-2xl
+bg-white/10
+border
+border-white/20
+px-6
+py-4
+backdrop-blur-xl
+"
+
+>
+
+
+<span>
+
+☎
+
+</span>
+
+
+
+<span>
+
+{phone}
+
+</span>
+
+
+</div>
+
+
+)
+
+}
+
+
+
+</div>
+
+)
+
+}
+
+====================================================================================================
+./components/EcoMap.tsx
+====================================================================================================
+"use client";
+
+import * as React from "react";
+import * as ReactDOM from "react-dom";
+
+import type { ReactifiedModule } from "@yandex/ymaps3-types/reactify/reactify";
+
+export type MapComplaint = {
+  _id: string;
+  complaintId: string;
+  title: string;
+  description: string;
+  category: string;
+  region: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  status: "inProgress" | "resolved";
+  createdAt: string;
+  imageUrl?: string;
+};
+
+type EcoMapProps = {
+  complaints: MapComplaint[];
+};
+
+type ReactifiedApi = ReactifiedModule<typeof ymaps3>;
+
+function getStatusLabel(status: MapComplaint["status"]): string {
+  return status === "resolved" ? "Решено" : "В работе";
+}
+
+function formatDate(date: string): string {
+  const parsedDate = new Date(date);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(parsedDate);
+}
+
+function waitForYandexMaps(timeout = 15000): Promise<typeof ymaps3> {
+  return new Promise((resolve, reject) => {
+    const startedAt = Date.now();
+
+    const checkApi = () => {
+      if (window.ymaps3) {
+        resolve(window.ymaps3);
+        return;
+      }
+
+      if (Date.now() - startedAt >= timeout) {
+        reject(
+          new Error(
+            "API Яндекс Карт не загрузился за 15 секунд. Проверьте ключ, ограничения Referer и загрузку скрипта.",
+          ),
+        );
+        return;
+      }
+
+      window.setTimeout(checkApi, 100);
+    };
+
+    checkApi();
+  });
+}
+
+export default function EcoMap({ complaints }: EcoMapProps) {
+  const [reactifiedApi, setReactifiedApi] =
+    React.useState<ReactifiedApi | null>(null);
+
+  const [selectedComplaint, setSelectedComplaint] =
+    React.useState<MapComplaint | null>(null);
+
+  const [mapError, setMapError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let isCancelled = false;
+
+    async function initializeMap(): Promise<void> {
+      try {
+        const yandexMaps = await waitForYandexMaps();
+
+        await yandexMaps.ready;
+
+        const ymaps3React = await yandexMaps.import(
+          "@yandex/ymaps3-reactify",
+        );
+
+        if (isCancelled) {
+          return;
+        }
+
+        const reactify = ymaps3React.reactify.bindTo(
+          React,
+          ReactDOM,
+        );
+
+        const api = reactify.module(yandexMaps);
+
+        setReactifiedApi(api);
+      } catch (error) {
+        console.error("Yandex Maps initialization error:", error);
+
+        if (!isCancelled) {
+          setMapError(
+            error instanceof Error
+              ? error.message
+              : "Не удалось загрузить Яндекс Карты.",
+          );
+        }
+      }
+    }
+
+    initializeMap();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  const validComplaints = React.useMemo(
+    () =>
+      complaints.filter(
+        (complaint) =>
+          Number.isFinite(complaint.latitude) &&
+          Number.isFinite(complaint.longitude),
+      ),
+    [complaints],
+  );
+
+  const initialLocation = React.useMemo(
+    () => ({
+      center:
+        validComplaints.length > 0
+          ? ([
+              validComplaints[0].longitude,
+              validComplaints[0].latitude,
+            ] as [number, number])
+          : ([37.6173, 55.7558] as [number, number]),
+      zoom: validComplaints.length > 0 ? 8 : 4,
+    }),
+    [validComplaints],
+  );
+
+  if (mapError) {
+    return (
+      <div className="flex min-h-[520px] items-center justify-center rounded-3xl border border-white/15 bg-neutral-950/95 px-6 text-center md:min-h-[680px]">
+        <div className="max-w-lg">
+          <h2 className="text-2xl font-bold">
+            Карта временно недоступна
+          </h2>
+
+          <p className="mt-3 text-base text-white/60">
+            {mapError}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!reactifiedApi) {
+    return (
+      <div className="flex min-h-[520px] items-center justify-center rounded-3xl border border-white/15 bg-neutral-950/90 md:min-h-[680px]">
+        <div className="text-center">
+          <div className="mx-auto h-11 w-11 animate-spin rounded-full border-4 border-white/20 border-t-white" />
+
+          <p className="mt-4 text-lg font-medium">
+            Загружаем Экокарту
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const {
+    YMap,
+    YMapDefaultSchemeLayer,
+    YMapDefaultFeaturesLayer,
+    YMapMarker,
+  } = reactifiedApi;
+
+  return (
+    <div className="relative w-full overflow-hidden rounded-3xl border border-white/15 bg-black/40 shadow-[0_25px_80px_rgba(0,0,0,0.45)]">
+      <div className="h-[520px] w-full md:h-[680px]">
+        <YMap location={initialLocation}>
+          <YMapDefaultSchemeLayer />
+          <YMapDefaultFeaturesLayer />
+
+          {validComplaints.map((complaint) => (
+            <YMapMarker
+              key={complaint._id}
+              coordinates={[
+                complaint.longitude,
+                complaint.latitude,
+              ]}
+            >
+              <button
+                type="button"
+                aria-label={`Открыть жалобу ${complaint.complaintId}`}
+                onClick={() => setSelectedComplaint(complaint)}
+                className={`
+                  flex
+                  h-11
+                  w-11
+                  -translate-x-1/2
+                  -translate-y-full
+                  items-center
+                  justify-center
+                  rounded-full
+                  border-[3px]
+                  border-white
+                  text-xl
+                  font-bold
+                  text-white
+                  shadow-[0_8px_24px_rgba(0,0,0,0.45)]
+                  transition
+                  hover:scale-110
+                  ${
+                    complaint.status === "resolved"
+                      ? "bg-green-600"
+                      : "bg-amber-500"
+                  }
+                `}
+              >
+                !
+              </button>
+            </YMapMarker>
+          ))}
+        </YMap>
+      </div>
+
+      <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-2xl border border-white/15 bg-black/75 px-4 py-3 text-left shadow-xl backdrop-blur-xl md:left-5 md:top-5">
+        <p className="text-sm font-semibold">
+          Нарушений на карте: {validComplaints.length}
+        </p>
+
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-xs">
+          <span className="flex items-center gap-2 text-white/70">
+            <span className="h-3 w-3 rounded-full bg-amber-500" />
+            В работе
+          </span>
+
+          <span className="flex items-center gap-2 text-white/70">
+            <span className="h-3 w-3 rounded-full bg-green-600" />
+            Решено
+          </span>
+        </div>
+      </div>
+
+      {selectedComplaint && (
+        <>
+          <button
+            type="button"
+            aria-label="Закрыть информацию о жалобе"
+            onClick={() => setSelectedComplaint(null)}
+            className="absolute inset-0 z-30 cursor-default bg-black/35 backdrop-blur-[2px]"
+          />
+
+          <article className="absolute bottom-3 left-3 right-3 z-40 max-h-[calc(100%-24px)] overflow-y-auto rounded-3xl border border-white/15 bg-neutral-950/95 p-5 text-left shadow-2xl backdrop-blur-2xl md:bottom-5 md:left-auto md:right-5 md:top-5 md:w-[390px] md:p-6">
+            <button
+              type="button"
+              onClick={() => setSelectedComplaint(null)}
+              aria-label="Закрыть"
+              className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-2xl leading-none transition hover:bg-white/20"
+            >
+              ×
+            </button>
+
+            {selectedComplaint.imageUrl && (
+              <img
+                src={selectedComplaint.imageUrl}
+                alt={selectedComplaint.title}
+                className="mb-5 h-48 w-full rounded-2xl object-cover"
+              />
+            )}
+
+            <div className="pr-12">
+              <span
+                className={`
+                  inline-flex
+                  rounded-full
+                  px-3
+                  py-1
+                  text-sm
+                  font-semibold
+                  ${
+                    selectedComplaint.status === "resolved"
+                      ? "bg-green-600/20 text-green-300"
+                      : "bg-amber-500/20 text-amber-300"
+                  }
+                `}
+              >
+                {getStatusLabel(selectedComplaint.status)}
+              </span>
+
+              <p className="mt-3 text-sm text-white/45">
+                {selectedComplaint.complaintId}
+              </p>
+            </div>
+
+            <h2 className="mt-3 text-2xl font-bold leading-tight">
+              {selectedComplaint.title}
+            </h2>
+
+            <p className="mt-3 text-sm text-white/50">
+              {selectedComplaint.category}
+            </p>
+
+            <p className="mt-4 whitespace-pre-line text-base leading-7 text-white/75">
+              {selectedComplaint.description}
+            </p>
+
+            <div className="mt-5 space-y-3 border-t border-white/10 pt-5 text-sm">
+              <div>
+                <p className="text-white/40">Адрес</p>
+                <p className="mt-1 text-white/80">
+                  {selectedComplaint.address}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-white/40">Регион</p>
+                <p className="mt-1 text-white/80">
+                  {selectedComplaint.region}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-white/40">Дата обращения</p>
+                <p className="mt-1 text-white/80">
+                  {formatDate(selectedComplaint.createdAt)}
+                </p>
+              </div>
+            </div>
+          </article>
+        </>
+      )}
+    </div>
+  );
+}
+
+====================================================================================================
+./components/Footer.tsx
+====================================================================================================
+export default function Footer() {
+
+return (
+
+<footer className="
+
+hidden
+md:block
+
+py-10
+mt-20
+border-t
+border-white/10
+
+">
+
+
+<div className="
+
+max-w-[1400px]
+mx-auto
+px-6
+md:px-10
+text-white/50
+text-sm
+
+">
+
+
+© {new Date().getFullYear()} EcoVlog
+
+
+</div>
+
+
+</footer>
+
+
+);
+
+}
+
+====================================================================================================
+./components/Header.tsx
+====================================================================================================
+import Link from "next/link";
+
+export default function Header() {
+  return (
+    <header
+      className="
+        w-full
+        flex
+        items-center
+        justify-between
+
+        px-3
+        py-3
+
+        md:px-6
+        md:py-5
+
+        gap-3
+      "
+    >
+      <Link
+        href="/"
+        className="
+          group
+          hover:scale-105
+          transition
+          duration-300
+          shrink-0
+        "
+      >
+        <div
+          className="
+            relative
+            overflow-hidden
+            rounded-3xl
+            p-2
+            bg-white/10
+            border
+            border-white/20
+            backdrop-blur-2xl
+            shadow-[0_8px_40px_rgba(255,255,255,0.15)]
+          "
+        >
+          <div
+            className="
+              absolute
+              inset-0
+              bg-gradient-to-br
+              from-white/30
+              via-transparent
+              to-transparent
+              pointer-events-none
+            "
+          />
+
+          <img
+            src="/images/ecovlog-logo.png"
+            alt="EcoVlog"
+            className="
+              relative
+              h-12
+              md:h-16
+              w-auto
+              object-contain
+            "
+          />
+        </div>
+      </Link>
+
+      <nav
+        className="
+          flex
+          items-center
+          shrink-0
+        "
+      >
+        <Link
+          href="/contacts"
+          className="
+            relative
+            overflow-hidden
+
+            bg-white/10
+            text-white
+
+            px-4
+            md:px-6
+
+            py-2
+
+            rounded-full
+
+            font-semibold
+
+            text-sm
+            md:text-base
+
+            border
+            border-white/25
+
+            backdrop-blur-xl
+
+            shadow-[0_8px_30px_rgba(255,255,255,0.12)]
+
+            hover:bg-white/20
+            hover:scale-105
+
+            transition
+            duration-300
+          "
+        >
+          <span className="relative z-10">
+            Контакты
+          </span>
+
+          <div
+            className="
+              absolute
+              inset-0
+              bg-gradient-to-br
+              from-white/30
+              via-transparent
+              to-transparent
+            "
+          />
+        </Link>
+      </nav>
+    </header>
+  );
+}
+
+====================================================================================================
+./components/HomeHeader.tsx
+====================================================================================================
+import Link from "next/link";
+
+export default function HomeHeader() {
+  return (
+    <header
+      className="
+        w-full
+        flex
+        items-center
+        justify-between
+        px-3
+        py-3
+        md:px-6
+        md:py-5
+        gap-3
+      "
+    >
+      <Link
+        href="/"
+        className="
+          group
+          hover:scale-105
+          transition
+          duration-300
+          shrink-0
+        "
+      >
+        <div
+          className="
+            relative
+            overflow-hidden
+            rounded-3xl
+            p-2
+            bg-white/10
+            border
+            border-white/20
+            backdrop-blur-2xl
+            shadow-[0_8px_40px_rgba(255,255,255,0.15)]
+          "
+        >
+          <div
+            className="
+              absolute
+              inset-0
+              bg-gradient-to-br
+              from-white/30
+              via-transparent
+              to-transparent
+              pointer-events-none
+            "
+          />
+
+          <img
+            src="/images/ecovlog-logo.png"
+            alt="EcoVlog"
+            className="
+              relative
+              h-12
+              md:h-16
+              w-auto
+              object-contain
+            "
+          />
+        </div>
+      </Link>
+
+      <Link
+        href="/contacts"
+        className="
+          relative
+          overflow-hidden
+          shrink-0
+
+          bg-white/10
+          text-white
+
+          px-4
+          md:px-6
+
+          py-2
+          md:py-3
+
+          rounded-full
+          font-semibold
+
+          text-sm
+          md:text-base
+
+          border
+          border-white/25
+
+          backdrop-blur-xl
+
+          shadow-[0_8px_30px_rgba(255,255,255,0.12)]
+
+          hover:bg-white/20
+          hover:scale-105
+          transition
+          duration-300
+        "
+      >
+        <span className="relative z-10">
+          Контакты
+        </span>
+
+        <div
+          className="
+            absolute
+            inset-0
+            bg-gradient-to-br
+            from-white/30
+            via-transparent
+            to-transparent
+          "
+        />
+      </Link>
+    </header>
+  );
+}
+
+====================================================================================================
+./components/ImageCarousel.tsx
+====================================================================================================
+"use client";
+
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { urlFor } from "@/sanity/lib/image";
+
+
+export default function ImageCarousel({
+
+images,
+title
+
+}:{
+
+images:any[];
+title:string;
+
+}){
+
+
+const [active,setActive] = useState(0);
+
+
+
+if(!images || images.length === 0){
+
+return null;
+
+}
+
+
+
+const next = ()=>{
+
+setActive(
+(active + 1) % images.length
+);
+
+};
+
+
+
+const previous = ()=>{
+
+setActive(
+(active - 1 + images.length) % images.length
+);
+
+};
+
+
+
+
+const getPosition = (index:number)=>{
+
+
+const length = images.length;
+
+
+let position =
+(index - active + length) % length;
+
+
+
+if(position > length / 2){
+
+position -= length;
+
+}
+
+
+
+return position;
+
+};
+
+
+
+
+
+return (
+
+
+<div
+
+className="
+relative
+w-full
+h-[560px]
+md:h-[650px]
+flex
+items-center
+justify-center
+"
+
+>
+
+
+
+<div
+
+className="
+relative
+w-[300px]
+h-[470px]
+md:w-[400px]
+md:h-[580px]
+"
+
+>
+
+
+<AnimatePresence>
+
+
+
+{
+
+
+images.map((image,index)=>{
+
+
+const position =
+getPosition(index);
+
+
+
+if(Math.abs(position)>3){
+
+return null;
+
+}
+
+
+
+const isActive =
+position === 0;
+
+
+
+return (
+
+
+
+<motion.div
+
+key={index}
+
+
+onClick={()=>{
+
+if(isActive){
+
+next();
+
+}else{
+
+setActive(index);
+
+}
+
+}}
+
+
+
+drag={isActive ? "x" : false}
+
+
+
+dragConstraints={{
+left:0,
+right:0
+}}
+
+
+
+onDragEnd={(e,info)=>{
+
+
+if(info.offset.x < -80){
+
+next();
+
+}
+
+
+if(info.offset.x > 80){
+
+previous();
+
+}
+
+
+}}
+
+
+
+animate={{
+
+x:
+position === 0
+?
+0
+:
+position > 0
+?
+position * 100
+:
+position * 100,
+
+
+scale:
+position === 0
+?
+1
+:
+0.88 - Math.abs(position)*0.05,
+
+
+rotate:
+position === 0
+?
+0
+:
+position > 0
+?
+8
+:
+-8,
+
+
+opacity:
+position === 0
+?
+1
+:
+Math.max(
+0.3,
+1 - Math.abs(position)*0.25
+),
+
+
+zIndex:
+100-Math.abs(position)
+
+}}
+
+
+
+transition={{
+
+type:"spring",
+
+stiffness:170,
+
+damping:24
+
+}}
+
+
+
+className="
+absolute
+inset-0
+flex
+items-center
+justify-center
+"
+
+>
+
+
+
+<div
+
+className="
+relative
+w-full
+h-full
+rounded-[32px]
+border
+border-white/20
+bg-white/10
+backdrop-blur-2xl
+shadow-[0_30px_80px_rgba(0,0,0,0.5)]
+flex
+items-center
+justify-center
+p-4
+"
+
+>
+
+
+<img
+
+
+src={
+
+urlFor(image)
+.width(1200)
+.fit("max")
+.url()
+
+}
+
+
+alt={title}
+
+
+
+className="
+max-w-full
+max-h-full
+object-contain
+rounded-2xl
+"
+
+ />
+
+
+
+<div
+
+className="
+absolute
+inset-0
+rounded-[32px]
+bg-gradient-to-br
+from-white/20
+via-transparent
+to-transparent
+pointer-events-none
+"
+
+/>
+
+
+
+</div>
+
+
+
+</motion.div>
+
+
+)
+
+
+})
+
+
+}
+
+
+
+</AnimatePresence>
+
+
+</div>
+
+
+
+
+
+
+
+
+<button
+
+onClick={previous}
+
+className="
+absolute
+left-3
+md:left-5
+top-1/2
+-translate-y-1/2
+w-12
+h-12
+rounded-full
+bg-white/10
+border
+border-white/20
+backdrop-blur-xl
+text-2xl
+hover:bg-white/20
+transition
+"
+
+>
+
+‹
+
+</button>
+
+
+
+
+
+<button
+
+onClick={next}
+
+className="
+absolute
+right-3
+md:right-5
+top-1/2
+-translate-y-1/2
+w-12
+h-12
+rounded-full
+bg-white/10
+border
+border-white/20
+backdrop-blur-xl
+text-2xl
+hover:bg-white/20
+transition
+"
+
+>
+
+›
+
+</button>
+
+
+
+</div>
+
+
+)
+
+}
+
+====================================================================================================
+./components/LocationPicker.tsx
+====================================================================================================
 "use client";
 
 import * as React from "react";
@@ -631,26 +6573,46 @@ type LocationPickerProps = {
   region: RegionOption;
   value: LngLat | null;
   onChange: (coordinates: LngLat) => void;
+  onAddressChange?: (address: string) => void;
 };
 
-type YandexSearchResult = {
-  geometry?: {
-    coordinates?: LngLat;
+type GeocoderGeoObject = {
+  Point?: {
+    pos?: string;
   };
-  properties?: {
-    name?: string;
-    description?: string;
+  name?: string;
+  description?: string;
+  metaDataProperty?: {
+    GeocoderMetaData?: {
+      text?: string;
+      Address?: {
+        formatted?: string;
+      };
+    };
+  };
+};
+
+type GeocoderResponse = {
+  response?: {
+    GeoObjectCollection?: {
+      featureMember?: Array<{
+        GeoObject?: GeocoderGeoObject;
+      }>;
+    };
   };
 };
 
 function waitForYandexMaps(
-  timeout = 15000,
+  timeout = 20000,
 ): Promise<typeof ymaps3> {
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();
 
     const checkApi = (): void => {
-      if (window.ymaps3) {
+      if (
+        typeof window !== "undefined" &&
+        window.ymaps3
+      ) {
         resolve(window.ymaps3);
         return;
       }
@@ -658,9 +6620,10 @@ function waitForYandexMaps(
       if (Date.now() - startedAt >= timeout) {
         reject(
           new Error(
-            "API Яндекс Карт не загрузился. Проверьте API-ключ и ограничения Referer.",
+            "API Яндекс Карт не загрузился. Проверьте ключ JavaScript API в файле .env.local.",
           ),
         );
+
         return;
       }
 
@@ -671,16 +6634,151 @@ function waitForYandexMaps(
   });
 }
 
+function getGeocoderApiKey(): string {
+  return (
+    process.env
+      .NEXT_PUBLIC_YANDEX_GEOCODER_API_KEY?.trim() ??
+    ""
+  );
+}
+
+function getFirstGeoObject(
+  data: GeocoderResponse,
+): GeocoderGeoObject | undefined {
+  return data.response?.GeoObjectCollection
+    ?.featureMember?.[0]?.GeoObject;
+}
+
+function getGeoObjectAddress(
+  geoObject: GeocoderGeoObject | undefined,
+): string {
+  if (!geoObject) {
+    return "";
+  }
+
+  const metadata =
+    geoObject.metaDataProperty
+      ?.GeocoderMetaData;
+
+  const formattedAddress =
+    metadata?.Address?.formatted?.trim() ??
+    "";
+
+  const text =
+    metadata?.text?.trim() ?? "";
+
+  if (formattedAddress) {
+    return formattedAddress;
+  }
+
+  if (text) {
+    return text;
+  }
+
+  const description =
+    geoObject.description?.trim() ?? "";
+
+  const name =
+    geoObject.name?.trim() ?? "";
+
+  if (description && name) {
+    return `${description}, ${name}`;
+  }
+
+  return description || name;
+}
+
+function getGeoObjectCoordinates(
+  geoObject: GeocoderGeoObject | undefined,
+): LngLat | null {
+  const position =
+    geoObject?.Point?.pos?.trim();
+
+  if (!position) {
+    return null;
+  }
+
+  const [longitudeValue, latitudeValue] =
+    position.split(/\s+/);
+
+  const longitude = Number(longitudeValue);
+  const latitude = Number(latitudeValue);
+
+  if (
+    !Number.isFinite(longitude) ||
+    !Number.isFinite(latitude)
+  ) {
+    return null;
+  }
+
+  return [longitude, latitude];
+}
+
+async function requestGeocoder(
+  geocode: string,
+): Promise<GeocoderGeoObject | undefined> {
+  const apiKey = getGeocoderApiKey();
+
+  if (!apiKey) {
+    throw new Error(
+      "В файле .env.local не указан ключ NEXT_PUBLIC_YANDEX_GEOCODER_API_KEY.",
+    );
+  }
+
+  const parameters =
+    new URLSearchParams({
+      apikey: apiKey,
+      geocode,
+      lang: "ru_RU",
+      format: "json",
+      results: "1",
+    });
+
+  const response = await fetch(
+    `https://geocode-maps.yandex.ru/v1/?${parameters.toString()}`,
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+    },
+  );
+
+  if (!response.ok) {
+    let errorMessage =
+      `Ошибка Геокодера Яндекса: ${response.status}`;
+
+    try {
+      const errorData = (await response.json()) as {
+        message?: string;
+      };
+
+      if (errorData.message) {
+        errorMessage = errorData.message;
+      }
+    } catch {
+      // Ответ сервиса может не содержать JSON.
+    }
+
+    throw new Error(errorMessage);
+  }
+
+  const data =
+    (await response.json()) as GeocoderResponse;
+
+  return getFirstGeoObject(data);
+}
+
 export default function LocationPicker({
   region,
   value,
   onChange,
+  onAddressChange,
 }: LocationPickerProps) {
-  const [yandexMaps, setYandexMaps] =
-    React.useState<typeof ymaps3 | null>(null);
-
   const [reactifiedApi, setReactifiedApi] =
-    React.useState<ReactifiedApi | null>(null);
+    React.useState<ReactifiedApi | null>(
+      null,
+    );
 
   const [location, setLocation] =
     React.useState<YMapLocationRequest>({
@@ -688,57 +6786,81 @@ export default function LocationPicker({
       zoom: region.zoom,
     });
 
-  const [searchQuery, setSearchQuery] = React.useState("");
-  const [searchError, setSearchError] =
-    React.useState<string | null>(null);
+  const [searchValue, setSearchValue] =
+    React.useState("");
+
+  const [
+    selectedAddress,
+    setSelectedAddress,
+  ] = React.useState("");
 
   const [mapError, setMapError] =
     React.useState<string | null>(null);
 
+  const [searchError, setSearchError] =
+    React.useState<string | null>(null);
+
   const [isSearching, setIsSearching] =
     React.useState(false);
+
+  const [
+    isResolvingAddress,
+    setIsResolvingAddress,
+  ] = React.useState(false);
+
+  const geocoderRequestIdRef =
+    React.useRef(0);
 
   React.useEffect(() => {
     let isCancelled = false;
 
     async function initializeMap(): Promise<void> {
       try {
-        const mapsApi = await waitForYandexMaps();
+        setMapError(null);
+
+        const mapsApi =
+          await waitForYandexMaps();
 
         await mapsApi.ready;
 
-        const ymaps3React = await mapsApi.import(
-          "@yandex/ymaps3-reactify",
-        );
+        const ymaps3React =
+          await mapsApi.import(
+            "@yandex/ymaps3-reactify",
+          );
+
+        const reactify =
+          ymaps3React.reactify.bindTo(
+            React,
+            ReactDOM,
+          );
+
+        const coreApi =
+          reactify.module(mapsApi);
 
         if (isCancelled) {
           return;
         }
 
-        const reactify = ymaps3React.reactify.bindTo(
-          React,
-          ReactDOM,
-        );
-
-        setYandexMaps(mapsApi);
-        setReactifiedApi(reactify.module(mapsApi));
+        setReactifiedApi(coreApi);
       } catch (error) {
         console.error(
           "Yandex Maps initialization error:",
           error,
         );
 
-        if (!isCancelled) {
-          setMapError(
-            error instanceof Error
-              ? error.message
-              : "Не удалось загрузить Яндекс Карты.",
-          );
+        if (isCancelled) {
+          return;
         }
+
+        setMapError(
+          error instanceof Error
+            ? error.message
+            : "Не удалось загрузить Яндекс Карты.",
+        );
       }
     }
 
-    initializeMap();
+    void initializeMap();
 
     return () => {
       isCancelled = true;
@@ -746,83 +6868,299 @@ export default function LocationPicker({
   }, []);
 
   React.useEffect(() => {
+    geocoderRequestIdRef.current += 1;
+
     setLocation({
       center: region.center,
       zoom: region.zoom,
       duration: 500,
     });
 
-    setSearchQuery("");
+    setSearchValue("");
     setSearchError(null);
-  }, [region]);
+    setSelectedAddress("");
+    setIsSearching(false);
+    setIsResolvingAddress(false);
 
-  const handleCoordinatesChange = React.useCallback(
-    (coordinates: LngLat): void => {
-      onChange(coordinates);
-      setSearchError(null);
-    },
-    [onChange],
-  );
+    onAddressChange?.("");
+  }, [region, onAddressChange]);
 
-  const handleMapClick = React.useCallback<DomEventHandler>(
-    (_object, event): void => {
-      handleCoordinatesChange(event.coordinates);
-    },
-    [handleCoordinatesChange],
-  );
+  const updateAddress =
+    React.useCallback(
+      (address: string): void => {
+        const normalizedAddress =
+          address.trim();
 
-  const handleMarkerDragEnd = React.useCallback(
-    (coordinates: LngLat): void => {
-      handleCoordinatesChange(coordinates);
-    },
-    [handleCoordinatesChange],
-  );
-
-  async function handleSearch(): Promise<void> {
-
-    const normalizedQuery = searchQuery.trim();
-
-    if (!normalizedQuery || !yandexMaps) {
-      return;
-    }
-
-    setIsSearching(true);
-    setSearchError(null);
-
-    try {
-      const requestText = `${normalizedQuery}, ${region.name}`;
-
-      const results = (await yandexMaps.search({
-        text: requestText,
-      })) as YandexSearchResult[];
-
-      const coordinates =
-        results[0]?.geometry?.coordinates;
-
-      if (!coordinates) {
-        setSearchError(
-          "Адрес не найден. Уточните запрос или поставьте точку вручную.",
+        setSelectedAddress(
+          normalizedAddress,
         );
-        return;
-      }
 
-      onChange(coordinates);
+        onAddressChange?.(
+          normalizedAddress,
+        );
+      },
+      [onAddressChange],
+    );
 
-      setLocation({
-        center: coordinates,
-        zoom: 16,
-        duration: 600,
-      });
-    } catch (error) {
-      console.error("Yandex address search error:", error);
+  const resolveAddress =
+    React.useCallback(
+      async (
+        coordinates: LngLat,
+      ): Promise<void> => {
+        const requestId =
+          geocoderRequestIdRef.current + 1;
 
-      setSearchError(
-        "Не удалось выполнить поиск. Попробуйте ещё раз или укажите место на карте.",
-      );
-    } finally {
-      setIsSearching(false);
-    }
-  }
+        geocoderRequestIdRef.current =
+          requestId;
+
+        setIsResolvingAddress(true);
+        setSearchError(null);
+
+        try {
+          const longitude =
+            coordinates[0];
+
+          const latitude =
+            coordinates[1];
+
+          const geoObject =
+            await requestGeocoder(
+              `${longitude},${latitude}`,
+            );
+
+          if (
+            geocoderRequestIdRef.current !==
+            requestId
+          ) {
+            return;
+          }
+
+          const address =
+            getGeoObjectAddress(geoObject);
+
+          updateAddress(
+            address ||
+              `${region.name}, координаты: ${latitude.toFixed(
+                6,
+              )}, ${longitude.toFixed(6)}`,
+          );
+        } catch (error) {
+          console.error(
+            "Yandex reverse geocoding error:",
+            error,
+          );
+
+          if (
+            geocoderRequestIdRef.current !==
+            requestId
+          ) {
+            return;
+          }
+
+          updateAddress(
+            `${region.name}, координаты: ${coordinates[1].toFixed(
+              6,
+            )}, ${coordinates[0].toFixed(6)}`,
+          );
+
+          setSearchError(
+            error instanceof Error
+              ? error.message
+              : "Не удалось определить адрес выбранной точки.",
+          );
+        } finally {
+          if (
+            geocoderRequestIdRef.current ===
+            requestId
+          ) {
+            setIsResolvingAddress(false);
+          }
+        }
+      },
+      [region.name, updateAddress],
+    );
+
+  const handleCoordinatesChange =
+    React.useCallback(
+      (
+        coordinates: LngLat,
+        knownAddress?: string,
+      ): void => {
+        onChange(coordinates);
+
+        if (knownAddress?.trim()) {
+          geocoderRequestIdRef.current += 1;
+
+          setIsResolvingAddress(false);
+          updateAddress(knownAddress);
+
+          return;
+        }
+
+        void resolveAddress(coordinates);
+      },
+      [
+        onChange,
+        resolveAddress,
+        updateAddress,
+      ],
+    );
+
+  const handleMapClick =
+    React.useCallback<DomEventHandler>(
+      (_object, event): void => {
+        setSearchError(null);
+
+        handleCoordinatesChange(
+          event.coordinates,
+        );
+      },
+      [handleCoordinatesChange],
+    );
+
+  const handleMarkerDragEnd =
+    React.useCallback(
+      (coordinates: LngLat): void => {
+        setSearchError(null);
+
+        handleCoordinatesChange(
+          coordinates,
+        );
+      },
+      [handleCoordinatesChange],
+    );
+
+  const handleSearch =
+    React.useCallback(
+      async (): Promise<void> => {
+        const normalizedQuery =
+          searchValue.trim();
+
+        if (!normalizedQuery) {
+          setSearchError(
+            "Введите адрес или название места.",
+          );
+
+          return;
+        }
+
+        const requestId =
+          geocoderRequestIdRef.current + 1;
+
+        geocoderRequestIdRef.current =
+          requestId;
+
+        setIsSearching(true);
+        setIsResolvingAddress(false);
+        setSearchError(null);
+
+        try {
+          const regionName =
+            region.name.trim();
+
+          const query =
+            normalizedQuery
+              .toLocaleLowerCase("ru-RU")
+              .includes(
+                regionName.toLocaleLowerCase(
+                  "ru-RU",
+                ),
+              )
+              ? normalizedQuery
+              : `${regionName}, ${normalizedQuery}`;
+
+          const geoObject =
+            await requestGeocoder(query);
+
+          if (
+            geocoderRequestIdRef.current !==
+            requestId
+          ) {
+            return;
+          }
+
+          const coordinates =
+            getGeoObjectCoordinates(
+              geoObject,
+            );
+
+          if (!coordinates) {
+            setSearchError(
+              "Адрес не найден. Уточните населённый пункт, улицу или номер дома.",
+            );
+
+            return;
+          }
+
+          const address =
+            getGeoObjectAddress(geoObject);
+
+          onChange(coordinates);
+
+          updateAddress(
+            address || normalizedQuery,
+          );
+
+          setSearchValue(
+            address || normalizedQuery,
+          );
+
+          setLocation({
+            center: coordinates,
+            zoom: 16,
+            duration: 600,
+          });
+        } catch (error) {
+          console.error(
+            "Yandex forward geocoding error:",
+            error,
+          );
+
+          if (
+            geocoderRequestIdRef.current !==
+            requestId
+          ) {
+            return;
+          }
+
+          setSearchError(
+            error instanceof Error
+              ? error.message
+              : "Не удалось выполнить поиск адреса.",
+          );
+        } finally {
+          if (
+            geocoderRequestIdRef.current ===
+            requestId
+          ) {
+            setIsSearching(false);
+          }
+        }
+      },
+      [
+        onChange,
+        region.name,
+        searchValue,
+        updateAddress,
+      ],
+    );
+
+  const handleSearchKeyDown =
+    React.useCallback(
+      (
+        event: React.KeyboardEvent<HTMLInputElement>,
+      ): void => {
+        if (event.key !== "Enter") {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        void handleSearch();
+      },
+      [handleSearch],
+    );
 
   if (mapError) {
     return (
@@ -865,123 +7203,76 @@ export default function LocationPicker({
   return (
     <div>
       <div className="mb-4">
-  <div className="flex flex-col gap-3 sm:flex-row">
-    <div className="relative flex-1">
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-lg text-white/40"
-      >
-        ⌕
-      </span>
+        <div className="flex overflow-hidden rounded-2xl border border-white/10 bg-white shadow-[0_14px_40px_rgba(0,0,0,0.24)]">
+          <input
+            aria-label="Поиск адреса"
+            className="min-w-0 flex-1 bg-white px-5 py-4 text-base text-neutral-900 outline-none placeholder:text-neutral-500"
+            disabled={isSearching}
+            onChange={(event) => {
+              setSearchValue(
+                event.target.value,
+              );
 
-      <input
-        aria-label="Поиск адреса"
-        className="
-          h-14
-          w-full
-          rounded-2xl
-          border
-          border-white/10
-          bg-white/[0.055]
-          py-4
-          pl-12
-          pr-5
-          text-base
-          text-white
-          outline-none
-          transition
-          placeholder:text-white/30
-          hover:border-white/20
-          focus:border-lime-400/70
-          focus:bg-white/[0.075]
-          focus:ring-4
-          focus:ring-lime-400/10
-        "
-        onChange={(event) => {
-          setSearchQuery(event.target.value);
-          setSearchError(null);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            void handleSearch();
-          }
-        }}
-        placeholder="Введите улицу, дом или название места"
-        type="search"
-        value={searchQuery}
-      />
-    </div>
+              if (searchError) {
+                setSearchError(null);
+              }
+            }}
+            onKeyDown={
+              handleSearchKeyDown
+            }
+            placeholder="Введите адрес или название места"
+            type="text"
+            value={searchValue}
+          />
 
-    <button
-      className="
-        h-14
-        shrink-0
-        rounded-2xl
-        bg-lime-400
-        px-7
-        font-bold
-        text-neutral-950
-        transition
-        hover:bg-lime-300
-        disabled:cursor-not-allowed
-        disabled:opacity-50
-      "
-      disabled={
-        isSearching ||
-        searchQuery.trim().length === 0
-      }
-      onClick={() => {
-        void handleSearch();
-      }}
-      type="button"
-    >
-      {isSearching ? "Ищем…" : "Найти"}
-    </button>
-  </div>
+          <button
+            className="flex shrink-0 items-center justify-center bg-lime-400 px-5 font-semibold text-neutral-950 transition hover:bg-lime-300 disabled:cursor-not-allowed disabled:opacity-60 md:px-7"
+            disabled={
+              isSearching ||
+              !searchValue.trim()
+            }
+            onClick={() => {
+              void handleSearch();
+            }}
+            type="button"
+          >
+            {isSearching
+              ? "Ищем…"
+              : "Найти"}
+          </button>
+        </div>
 
-  {searchError && (
-    <p className="mt-3 text-sm leading-6 text-amber-300">
-      {searchError}
-    </p>
-  )}
-</div>
+        {searchError && (
+          <p className="mt-2 px-1 text-sm leading-6 text-red-300">
+            {searchError}
+          </p>
+        )}
+      </div>
 
-      <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-black shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
+      <div className="location-picker-map relative overflow-hidden rounded-[28px] border border-white/10 bg-black shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
         <div className="h-[430px] w-full md:h-[560px]">
-          <YMap location={location}>
+          <YMap
+            location={location}
+            showScaleInCopyrights
+          >
             <YMapDefaultSchemeLayer />
             <YMapDefaultFeaturesLayer />
 
-            <YMapListener onClick={handleMapClick} />
+            <YMapListener
+              onClick={handleMapClick}
+            />
 
             {value && (
               <YMapMarker
                 coordinates={value}
                 draggable
-                onDragEnd={handleMarkerDragEnd}
+                onDragEnd={
+                  handleMarkerDragEnd
+                }
               >
                 <div
                   aria-label="Выбранное место нарушения"
-                  className="
-                    flex
-                    h-12
-                    w-12
-                    -translate-x-1/2
-                    -translate-y-full
-                    cursor-grab
-                    items-center
-                    justify-center
-                    rounded-full
-                    border-[3px]
-                    border-white
-                    bg-lime-500
-                    text-xl
-                    font-black
-                    text-neutral-950
-                    shadow-[0_10px_30px_rgba(0,0,0,0.55)]
-                    active:cursor-grabbing
-                  "
+                  className="flex h-12 w-12 -translate-x-1/2 -translate-y-full cursor-grab items-center justify-center rounded-full border-[3px] border-white bg-lime-500 text-xl font-black text-neutral-950 shadow-[0_10px_30px_rgba(0,0,0,0.55)] active:cursor-grabbing"
                   role="img"
                 >
                   !
@@ -993,27 +7284,1221 @@ export default function LocationPicker({
 
         {!value && (
           <div className="pointer-events-none absolute bottom-4 left-4 right-4 flex justify-center md:bottom-6">
-            <div className="rounded-full border border-white/15 bg-black/75 px-5 py-3 text-center text-sm font-medium text-white/75 shadow-xl backdrop-blur-xl">
-              Найдите адрес или нажмите на нужное место
+            <div className="rounded-full border border-white/15 bg-black/80 px-5 py-3 text-center text-sm font-medium text-white/80 shadow-xl backdrop-blur-xl">
+              Найдите адрес или нажмите
+              на нужное место
             </div>
           </div>
         )}
 
         {value && (
           <div className="pointer-events-none absolute bottom-4 left-4 right-4 flex justify-center md:bottom-6">
-            <div className="rounded-full border border-lime-400/25 bg-black/75 px-5 py-3 text-center text-sm font-medium text-white/80 shadow-xl backdrop-blur-xl">
-              Точка выбрана — маркер можно передвинуть
+            <div className="rounded-full border border-lime-400/25 bg-black/80 px-5 py-3 text-center text-sm font-medium text-white/85 shadow-xl backdrop-blur-xl">
+              {isResolvingAddress
+                ? "Определяем адрес…"
+                : "Точка выбрана — маркер можно передвинуть"}
             </div>
           </div>
         )}
+      </div>
+
+      {value && (
+        <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/35">
+            Выбранное место
+          </p>
+
+          <p className="mt-2 text-sm leading-6 text-white/75">
+            {isResolvingAddress
+              ? "Определяем адрес выбранной точки…"
+              : selectedAddress ||
+                `${region.name}, координаты: ${value[1].toFixed(
+                  6,
+                )}, ${value[0].toFixed(6)}`}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+====================================================================================================
+./components/PageBackground.tsx
+====================================================================================================
+"use client";
+
+
+export default function PageBackground({
+
+children
+
+}:{
+
+children: React.ReactNode
+
+}){
+
+
+return (
+
+<div className="
+relative
+min-h-screen
+overflow-hidden
+">
+
+
+<div
+
+className="
+fixed
+inset-0
+bg-cover
+bg-center
+bg-no-repeat
+"
+
+style={{
+
+backgroundImage:
+
+`
+linear-gradient(
+rgba(5,5,5,0.82),
+rgba(5,5,5,0.92)
+),
+url('/images/site-bg.jpg')
+`
+
+}}
+
+/>
+
+
+<div className="
+relative
+z-10
+">
+
+{children}
+
+</div>
+
+
+</div>
+
+)
+
+}
+
+====================================================================================================
+./components/Pagination.tsx
+====================================================================================================
+import Link from "next/link";
+
+type Props = {
+  currentPage: number;
+  totalPages: number;
+  basePath: string;
+  extraParams?: Record<string, string | undefined>;
+};
+
+export default function Pagination({
+  currentPage,
+  totalPages,
+  basePath,
+  extraParams = {},
+}: Props) {
+  if (totalPages <= 1) return null;
+
+  const createHref = (page: number) => {
+    const params = new URLSearchParams();
+
+    Object.entries(extraParams).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+    });
+
+    if (page > 1) params.set("page", String(page));
+
+    const query = params.toString();
+
+    return query ? `${basePath}?${query}` : basePath;
+  };
+
+  const pages: (number | "...")[] = [];
+
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) pages.push(i);
+  } else {
+    pages.push(1);
+
+    if (currentPage > 3) pages.push("...");
+
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+
+    for (let i = start; i <= end; i++) pages.push(i);
+
+    if (currentPage < totalPages - 2) pages.push("...");
+
+    pages.push(totalPages);
+  }
+
+  return (
+    <div className="flex justify-center items-center gap-2 mt-12 flex-wrap">
+
+      {currentPage > 1 && (
+        <Link
+          href={createHref(currentPage - 1)}
+          className="
+          px-4
+          py-2
+          rounded-full
+          bg-white/10
+          border
+          border-white/20
+          backdrop-blur-xl
+          hover:bg-white/20
+          transition
+          "
+        >
+          ←
+        </Link>
+      )}
+
+      {pages.map((item, index) => {
+
+        if (item === "...") {
+          return (
+            <div
+              key={index}
+              className="px-3 text-white/50"
+            >
+              ...
+            </div>
+          );
+        }
+
+        return (
+          <Link
+            key={item}
+            href={createHref(item)}
+            className={`
+            px-4
+            py-2
+            rounded-full
+            backdrop-blur-xl
+            border
+            transition
+            ${
+              item === currentPage
+                ? "bg-white text-black border-white"
+                : "bg-white/10 border-white/20 text-white hover:bg-white/20"
+            }
+            `}
+          >
+            {item}
+          </Link>
+        );
+      })}
+
+      {currentPage < totalPages && (
+        <Link
+          href={createHref(currentPage + 1)}
+          className="
+          px-4
+          py-2
+          rounded-full
+          bg-white/10
+          border
+          border-white/20
+          backdrop-blur-xl
+          hover:bg-white/20
+          transition
+          "
+        >
+          →
+        </Link>
+      )}
+
+    </div>
+  );
+}
+
+====================================================================================================
+./components/SectionCards.tsx
+====================================================================================================
+"use client";
+
+import Link from "next/link";
+import Image from "next/image";
+import { useState } from "react";
+
+const sections = [
+  {
+    title: "Видео",
+    image: "/images/video.webp",
+    link: "/videos",
+  },
+  {
+    title: "Статьи",
+    image: "/images/articles.webp",
+    link: "/articles",
+  },
+  {
+    title: "Публикации",
+    image: "/images/posts.webp",
+    link: "/posts",
+  },
+  {
+    title: "Экокарта",
+    image: "/images/map.webp",
+    link: "/map",
+  },
+];
+
+export default function SectionCards() {
+  const [active, setActive] = useState<number | null>(null);
+
+  return (
+    <section
+      className="
+      max-w-[1500px]
+      mx-auto
+      px-4
+      md:px-6
+      py-10
+      md:py-16
+    "
+    >
+      {/* ДЕСКТОП */}
+
+      <div
+        className="
+        hidden
+        md:flex
+        w-full
+        gap-5
+        h-[520px]
+      "
+      >
+        {sections.map((item, index) => (
+          <Link
+            key={item.title}
+            href={item.link}
+            onMouseEnter={() => setActive(index)}
+            onMouseLeave={() => setActive(null)}
+            className={`
+              transition-all
+              duration-700
+              ease-[cubic-bezier(0.34,1.56,0.64,1)]
+
+              ${
+                active === index
+                  ? "flex-[1.4]"
+                  : active !== null
+                  ? "flex-[0.8]"
+                  : "flex-1"
+              }
+            `}
+          >
+            <div
+              className="
+              relative
+              h-[520px]
+              rounded-[2rem]
+              overflow-hidden
+              cursor-pointer
+              border
+              border-white/10
+              shadow-2xl
+            "
+            >
+              <Image
+                src={item.image}
+                alt={item.title}
+                fill
+                priority
+                quality={80}
+                sizes="(min-width:1536px) 25vw,
+                       (min-width:1024px) 33vw,
+                       (min-width:768px) 40vw,
+                       50vw"
+                className={`
+                  object-cover
+                  transition-transform
+                  duration-700
+
+                  ${
+                    active === index
+                      ? "scale-110"
+                      : "scale-100"
+                  }
+                `}
+              />
+
+              <div
+                className="
+                absolute
+                inset-0
+                bg-gradient-to-b
+                from-black/10
+                to-black/70
+              "
+              />
+
+              <div
+                className="
+                absolute
+                bottom-8
+                left-1/2
+                -translate-x-1/2
+              "
+              >
+                <div
+                  className="
+                  backdrop-blur-xl
+                  bg-white/10
+                  border
+                  border-white/20
+                  rounded-full
+                  px-10
+                  py-4
+                  shadow-xl
+                "
+                >
+                  <h2
+                    className="
+                    text-3xl
+                    font-bold
+                  "
+                  >
+                    {item.title}
+                  </h2>
+                </div>
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      {/* МОБИЛЬНАЯ ВЕРСИЯ */}
+
+      <div
+        className="
+        md:hidden
+        grid
+        grid-cols-2
+        gap-3
+      "
+      >
+        {sections.map((item) => (
+          <Link
+            key={item.title}
+            href={item.link}
+            className="
+              relative
+              h-[220px]
+              rounded-[1.5rem]
+              overflow-hidden
+              border
+              border-white/20
+              shadow-xl
+            "
+          >
+            <Image
+              src={item.image}
+              alt={item.title}
+              fill
+              priority
+              quality={70}
+              sizes="50vw"
+              className="
+                object-cover
+              "
+            />
+
+            <div
+              className="
+              absolute
+              inset-0
+              bg-black/40
+            "
+            />
+
+            <div
+              className="
+              absolute
+              inset-0
+              flex
+              items-center
+              justify-center
+            "
+            >
+              <div
+                className="
+                backdrop-blur-2xl
+                bg-white/15
+                border
+                border-white/25
+                rounded-2xl
+                px-4
+                py-3
+                shadow-[0_8px_32px_rgba(0,0,0,0.35)]
+              "
+              >
+                <h2
+                  className="
+                  text-base
+                  font-bold
+                  text-white
+                  leading-[1.05]
+                  text-center
+                "
+                >
+                  {item.title}
+                </h2>
+              </div>
+            </div>          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+====================================================================================================
+./components/SectionHeader.tsx
+====================================================================================================
+import Link from "next/link";
+import SectionNavigation from "@/components/SectionNavigation";
+
+
+export default function SectionHeader({
+
+searchAction = "/",
+searchPlaceholder = "Поиск...",
+current
+
+}: {
+
+searchAction?: string;
+searchPlaceholder?: string;
+current?: string;
+
+}){
+
+
+return (
+
+<header
+className="
+w-full
+px-3
+md:px-6
+py-4
+md:py-5
+flex
+items-center
+justify-between
+gap-3
+overflow-x-hidden
+"
+>
+
+
+<Link
+
+href="/"
+
+className="
+group
+hover:scale-105
+transition
+duration-300
+shrink-0
+"
+
+>
+
+
+<div
+className="
+relative
+overflow-hidden
+rounded-3xl
+p-2
+bg-white/10
+border
+border-white/20
+backdrop-blur-2xl
+shadow-[0_8px_40px_rgba(255,255,255,0.15)]
+"
+>
+
+
+<div
+className="
+absolute
+inset-0
+bg-gradient-to-br
+from-white/30
+via-transparent
+to-transparent
+pointer-events-none
+"
+/>
+
+
+
+<img
+
+src="/images/ecovlog-logo.png"
+
+alt="EcoVlog"
+
+className="
+relative
+h-12
+md:h-16
+w-auto
+object-contain
+"
+
+/>
+
+
+</div>
+
+
+</Link>
+
+
+
+
+
+<div
+className="
+flex
+flex-col
+items-end
+gap-3
+ml-auto
+min-w-0
+w-full
+md:w-auto
+"
+>
+
+
+
+
+
+<div
+className="
+flex
+items-center
+justify-end
+gap-2
+w-full
+"
+>
+
+
+
+
+
+<form
+
+action={searchAction}
+
+className="
+relative
+w-full
+md:w-auto
+"
+
+>
+
+
+<input
+
+name="search"
+
+placeholder={searchPlaceholder}
+
+className="
+w-full
+md:w-[240px]
+rounded-full
+bg-white/10
+border
+border-white/20
+backdrop-blur-xl
+px-4
+py-2
+text-xs
+md:text-sm
+text-white
+placeholder:text-white/50
+outline-none
+focus:bg-white/20
+transition
+"
+
+/>
+
+
+</form>
+
+
+
+
+
+
+<nav
+
+className="
+hidden
+md:flex
+items-center
+gap-5
+text-white/80
+text-sm
+"
+
+>
+
+
+<Link
+
+href="/videos"
+
+className="
+hover:text-white
+transition
+"
+
+>
+Видео
+</Link>
+
+
+<Link
+
+href="/articles"
+
+className="
+hover:text-white
+transition
+"
+
+>
+Статьи
+</Link>
+
+
+<Link
+
+href="/posts"
+
+className="
+hover:text-white
+transition
+"
+
+>
+Публикации
+</Link>
+
+
+<Link
+
+href="/map"
+
+className="
+hover:text-white
+transition
+"
+
+>
+Экокарта
+</Link>
+
+
+
+
+<Link
+
+href="/contacts"
+
+className="
+relative
+overflow-hidden
+bg-white/10
+text-white
+px-5
+py-2
+rounded-full
+font-semibold
+border
+border-white/25
+backdrop-blur-xl
+shadow-[0_8px_30px_rgba(255,255,255,0.12)]
+hover:bg-white/20
+hover:scale-105
+transition
+duration-300
+"
+
+>
+
+<span
+className="
+relative
+z-10
+"
+>
+Контакты
+</span>
+
+
+<div
+className="
+absolute
+inset-0
+bg-gradient-to-br
+from-white/30
+via-transparent
+to-transparent
+pointer-events-none
+"
+/>
+
+
+</Link>
+
+
+</nav>
+
+
+
+</div>
+
+
+
+
+
+<SectionNavigation
+
+current={current}
+
+/>
+
+
+
+
+
+</div>
+
+
+
+
+
+</header>
+
+)
+
+}
+
+====================================================================================================
+./components/SectionNavigation.tsx
+====================================================================================================
+import Link from "next/link";
+
+const sections = [
+  {
+    title: "Видео",
+    link: "/videos",
+  },
+  {
+    title: "Статьи",
+    link: "/articles",
+  },
+  {
+    title: "Публикации",
+    link: "/posts",
+  },
+  {
+    title: "Экокарта",
+    link: "/map",
+  },
+];
+
+export default function SectionNavigation({
+  current,
+}: {
+  current?: string;
+}) {
+  return (
+    <div
+      className="
+        md:hidden
+        w-full
+        mt-2
+      "
+    >
+      <div
+        className="
+          grid
+          grid-cols-2
+          gap-2
+        "
+      >
+        {sections.map((item) => (
+          <Link
+            key={item.link}
+            href={item.link}
+            className={`
+              h-9
+              flex
+              items-center
+              justify-center
+              rounded-full
+              text-[11px]
+              font-medium
+              border
+              backdrop-blur-xl
+              transition
+              duration-300
+
+              ${
+                current === item.link
+                  ? "bg-white text-black border-white"
+                  : "bg-white/10 text-white border-white/20 hover:bg-white/20"
+              }
+            `}
+          >
+            {item.title}
+          </Link>
+        ))}
       </div>
     </div>
   );
 }
 
-==================================================
-FILE: lib/regions.ts
-==================================================
+====================================================================================================
+./components/VideoCard.tsx
+====================================================================================================
+import Link from "next/link";
+
+type VideoProps = {
+  title: string;
+  description: string;
+  date: string;
+  slug: {
+    current: string;
+  };
+  youtubeUrl: string;
+};
+
+
+export default function VideoCard({
+  title,
+  description,
+  date,
+  slug,
+  youtubeUrl,
+}: VideoProps) {
+
+
+  function getYoutubeId(url: string) {
+
+    if (!url) return null;
+
+
+    if (url.includes("shorts/")) {
+      return url.split("shorts/")[1].split("?")[0];
+    }
+
+
+    if (url.includes("watch?v=")) {
+      return url.split("watch?v=")[1].split("&")[0];
+    }
+
+
+    if (url.includes("youtu.be/")) {
+      return url.split("youtu.be/")[1].split("?")[0];
+    }
+
+
+    return null;
+  }
+
+
+  const youtubeId = getYoutubeId(youtubeUrl);
+
+
+  const preview = youtubeId
+    ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`
+    : "/images/video.jpg";
+
+
+  return (
+
+    <Link href={`/videos/${slug.current}`}>
+
+      <article
+        className="
+        bg-white/10
+        rounded-3xl
+        overflow-hidden
+        hover:scale-[1.03]
+        transition
+        duration-300
+        cursor-pointer
+        "
+      >
+
+
+        <div className="aspect-[9/16] bg-black">
+
+          <img
+            src={preview}
+            alt={title}
+            className="
+            w-full
+            h-full
+            object-cover
+            "
+          />
+
+        </div>
+
+
+        <div className="p-6">
+
+
+          <div className="text-sm text-white/50">
+            {date}
+          </div>
+
+
+          <h2 className="text-2xl font-bold mt-2">
+            {title}
+          </h2>
+
+
+          <p className="mt-3 text-white/70">
+            {description}
+          </p>
+
+
+        </div>
+
+
+      </article>
+
+    </Link>
+
+  );
+}
+
+====================================================================================================
+./data/videos.ts
+====================================================================================================
+export const videos = [
+  {
+    id: 1,
+    title: "Массовый замор рыбы в озере Ленобласти",
+    description:
+      "Экологическое расследование причин гибели рыбы.",
+    image: "/images/fish.jpg",
+    date: "2026-07-01",
+  },
+
+  {
+    id: 2,
+    title: "Незаконная свалка у Шуваловского леса",
+    description:
+      "Жители Петербурга выступили против строительных отходов.",
+    image: "/images/dump.jpg",
+    date: "2026-07-10",
+  },
+];
+
+====================================================================================================
+./global.d.ts
+====================================================================================================
+import type * as YMaps3 from "ymaps3";
+
+declare global {
+  const ymaps3: typeof YMaps3;
+
+  interface Window {
+    ymaps3: typeof YMaps3;
+  }
+}
+
+export {};
+
+====================================================================================================
+./lib/complaints.ts
+====================================================================================================
+export const COMPLAINT_CATEGORIES = [
+  {
+    value: "illegalDump",
+    title: "Несанкционированная свалка",
+  },
+  {
+    value: "wasteCollection",
+    title: "Нарушение вывоза отходов",
+  },
+  {
+    value: "wasteBurning",
+    title: "Сжигание отходов",
+  },
+  {
+    value: "waterPollution",
+    title: "Загрязнение водного объекта",
+  },
+  {
+    value: "airPollution",
+    title: "Загрязнение воздуха",
+  },
+  {
+    value: "soilPollution",
+    title: "Загрязнение или повреждение почвы",
+  },
+  {
+    value: "illegalLogging",
+    title: "Незаконная вырубка",
+  },
+  {
+    value: "protectedArea",
+    title: "Нарушение на особо охраняемой природной территории",
+  },
+  {
+    value: "animalCruelty",
+    title: "Жестокое обращение с животными",
+  },
+  {
+    value: "other",
+    title: "Другое экологическое нарушение",
+  },
+] as const;
+
+export const COMPLAINT_STATUSES = [
+  {
+    value: "moderation",
+    title: "На модерации",
+  },
+  {
+    value: "accepted",
+    title: "Принято",
+  },
+  {
+    value: "inProgress",
+    title: "В работе",
+  },
+  {
+    value: "resolved",
+    title: "Решено",
+  },
+  {
+    value: "rejected",
+    title: "Отклонено",
+  },
+] as const;
+
+export const COMPLAINT_SOURCES = [
+  {
+    value: "website",
+    title: "Сайт",
+  },
+  {
+    value: "admin",
+    title: "Добавлено вручную",
+  },
+  {
+    value: "telegram",
+    title: "Telegram",
+  },
+  {
+    value: "email",
+    title: "Электронная почта",
+  },
+  {
+    value: "other",
+    title: "Другой источник",
+  },
+] as const;
+
+export type ComplaintCategory =
+  (typeof COMPLAINT_CATEGORIES)[number]["value"];
+
+export type ComplaintStatus =
+  (typeof COMPLAINT_STATUSES)[number]["value"];
+
+export type ComplaintSource =
+  (typeof COMPLAINT_SOURCES)[number]["value"];
+
+export function isComplaintCategory(
+  value: unknown,
+): value is ComplaintCategory {
+  return COMPLAINT_CATEGORIES.some(
+    (category) => category.value === value,
+  );
+}
+
+export function isComplaintStatus(
+  value: unknown,
+): value is ComplaintStatus {
+  return COMPLAINT_STATUSES.some(
+    (status) => status.value === value,
+  );
+}
+
+export function isComplaintSource(
+  value: unknown,
+): value is ComplaintSource {
+  return COMPLAINT_SOURCES.some(
+    (source) => source.value === value,
+  );
+}
+
+export function getComplaintCategoryTitle(
+  value: string | undefined,
+): string {
+  return (
+    COMPLAINT_CATEGORIES.find(
+      (category) => category.value === value,
+    )?.title ?? "Категория не указана"
+  );
+}
+
+export function getComplaintStatusTitle(
+  value: string | undefined,
+): string {
+  return (
+    COMPLAINT_STATUSES.find(
+      (status) => status.value === value,
+    )?.title ?? "Статус не указан"
+  );
+}
+
+export function getComplaintSourceTitle(
+  value: string | undefined,
+): string {
+  return (
+    COMPLAINT_SOURCES.find(
+      (source) => source.value === value,
+    )?.title ?? "Источник не указан"
+  );
+}
+
+====================================================================================================
+./lib/regions.ts
+====================================================================================================
 export type RegionOption = {
   name: string;
   center: [number, number];
@@ -1444,9 +8929,104 @@ export function findRegion(
   return REGIONS.find((region) => region.name === regionName);
 }
 
-==================================================
-FILE: sanity.config.ts
-==================================================
+====================================================================================================
+./next-env.d.ts
+====================================================================================================
+/// <reference types="next" />
+/// <reference types="next/image-types/global" />
+import "./.next/dev/types/routes.d.ts";
+
+// NOTE: This file should not be edited
+// see https://nextjs.org/docs/app/api-reference/config/typescript for more information.
+
+
+====================================================================================================
+./next.config.ts
+====================================================================================================
+import type { NextConfig } from "next";
+
+
+const nextConfig: NextConfig = {
+
+  images: {
+
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "cdn.sanity.io",
+      },
+    ],
+
+    formats: [
+      "image/avif",
+      "image/webp",
+    ],
+
+  },
+
+
+};
+
+export default nextConfig;
+
+====================================================================================================
+./package.json
+====================================================================================================
+{
+  "name": "ecovlog-site",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@sanity/icons": "^5.1.0",
+    "@sanity/image-url": "^2.1.1",
+    "@sanity/vision": "^5.31.1",
+    "@yandex/ymaps3-default-ui-theme": "^0.0.25",
+    "framer-motion": "^12.42.2",
+    "next": "16.2.10",
+    "next-sanity": "^13.1.3",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "sanity": "^5.31.1",
+    "styled-components": "^6.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@yandex/ymaps3-types": "^1.0.20315584",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.10",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
+
+
+====================================================================================================
+./sanity.cli.ts
+====================================================================================================
+/**
+* This configuration file lets you run `$ sanity [command]` in this folder
+* Go to https://www.sanity.io/docs/cli to learn more.
+**/
+import { defineCliConfig } from 'sanity/cli'
+
+const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID
+const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET
+
+export default defineCliConfig({ api: { projectId, dataset } })
+
+
+====================================================================================================
+./sanity.config.ts
+====================================================================================================
 'use client'
 
 /**
@@ -1477,24 +9057,939 @@ export default defineConfig({
 })
 
 
-==================================================
-FILE: sanity.cli.ts
-==================================================
+====================================================================================================
+./sanity/env.ts
+====================================================================================================
+export const apiVersion =
+  process.env.NEXT_PUBLIC_SANITY_API_VERSION || '2026-07-16'
+
+export const dataset = assertValue(
+  process.env.NEXT_PUBLIC_SANITY_DATASET,
+  'Missing environment variable: NEXT_PUBLIC_SANITY_DATASET'
+)
+
+export const projectId = assertValue(
+  process.env.NEXT_PUBLIC_SANITY_PROJECT_ID,
+  'Missing environment variable: NEXT_PUBLIC_SANITY_PROJECT_ID'
+)
+
+function assertValue<T>(v: T | undefined, errorMessage: string): T {
+  if (v === undefined) {
+    throw new Error(errorMessage)
+  }
+
+  return v
+}
+
+
+====================================================================================================
+./sanity/lib/client.ts
+====================================================================================================
+import { createClient } from "next-sanity";
+
+export const client = createClient({
+  projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID!,
+  dataset: process.env.NEXT_PUBLIC_SANITY_DATASET!,
+  apiVersion: "2026-07-16",
+  useCdn: false,
+});
+
+export const POSTS_PER_PAGE = 20;
+
+====================================================================================================
+./sanity/lib/image.ts
+====================================================================================================
+import imageUrlBuilder from '@sanity/image-url'
+import {client} from './client'
+
+
+const builder = imageUrlBuilder(client)
+
+
+export function urlFor(source:any) {
+  return builder.image(source)
+}
+
+====================================================================================================
+./sanity/lib/live.ts
+====================================================================================================
+// Querying with "sanityFetch" will keep content automatically updated
+// Before using it, import and render "<SanityLive />" in your layout, see
+// https://github.com/sanity-io/next-sanity#live-content-api for more information.
+import { defineLive } from "next-sanity/live";
+import { client } from './client'
+
+export const { sanityFetch, SanityLive } = defineLive({
+  client,
+});
+
+
+====================================================================================================
+./sanity/lib/writeClient.ts
+====================================================================================================
+import {createClient} from 'next-sanity'
+
+export const writeClient = createClient({
+  projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID!,
+  dataset: process.env.NEXT_PUBLIC_SANITY_DATASET!,
+  apiVersion: '2026-07-16',
+  token: process.env.SANITY_API_WRITE_TOKEN!,
+  useCdn: false,
+})
+
+====================================================================================================
+./sanity/schemaTypes/articleType.ts
+====================================================================================================
+import {defineField, defineType} from 'sanity'
+
+
+export const articleType = defineType({
+
+  name: 'article',
+
+  title: 'Статьи',
+
+  type: 'document',
+
+
+  fields: [
+
+
+    defineField({
+
+      name: 'title',
+
+      title: 'Заголовок',
+
+      type: 'string',
+
+      validation: Rule => Rule.required()
+
+    }),
+
+
+
+    defineField({
+
+      name: 'slug',
+
+      title: 'URL адрес',
+
+      type: 'slug',
+
+      options: {
+
+        source: 'title',
+
+        maxLength: 96,
+
+      },
+
+      validation: Rule => Rule.required()
+
+    }),
+
+
+
+    defineField({
+
+      name: 'category',
+
+      title: 'Категория',
+
+      type: 'string',
+
+      options: {
+
+        list: [
+
+          {
+            title: 'Новости',
+            value: 'news'
+          },
+
+          {
+            title: 'Расследования',
+            value: 'investigation'
+          },
+
+          {
+            title: 'Научные материалы',
+            value: 'science'
+          },
+
+          {
+            title: 'Аналитика',
+            value: 'analytics'
+          }
+
+        ]
+
+      }
+
+    }),
+
+
+
+    defineField({
+
+      name: 'cover',
+
+      title: 'Главное изображение',
+
+      type: 'image',
+
+      options: {
+
+        hotspot: true,
+
+      }
+
+    }),
+
+
+
+    defineField({
+
+      name: 'description',
+
+      title: 'Краткое описание',
+
+      type: 'text',
+
+      rows: 4,
+
+    }),
+
+
+
+    defineField({
+
+      name: 'content',
+
+      title: 'Полный текст',
+
+      type: 'array',
+
+      of: [
+
+        {
+
+          type: 'block'
+
+        },
+
+        {
+
+          type: 'image',
+
+          options: {
+
+            hotspot: true
+
+          }
+
+        }
+
+      ]
+
+    }),
+
+
+
+    defineField({
+
+      name: 'date',
+
+      title: 'Дата публикации',
+
+      type: 'date'
+
+    })
+
+
+  ]
+
+})
+
+====================================================================================================
+./sanity/schemaTypes/authorType.ts
+====================================================================================================
+
+import {defineArrayMember, defineField, defineType} from 'sanity'
+
+export const authorType = defineType({
+  name: 'author',
+  title: 'Author',
+  type: 'document',
+  fields: [
+    defineField({
+      name: 'name',
+      type: 'string',
+    }),
+    defineField({
+      name: 'slug',
+      type: 'slug',
+      options: {
+        source: 'name',
+      },
+    }),
+    defineField({
+      name: 'image',
+      type: 'image',
+      options: {
+        hotspot: true,
+      },
+    }),
+    defineField({
+      name: 'bio',
+      type: 'array',
+      of: [
+        defineArrayMember({
+          type: 'block',
+          styles: [{title: 'Normal', value: 'normal'}],
+          lists: [],
+        }),
+      ],
+    }),
+  ],
+  preview: {
+    select: {
+      title: 'name',
+      media: 'image',
+    },
+  },
+})
+
+
+====================================================================================================
+./sanity/schemaTypes/blockContentType.ts
+====================================================================================================
+import {defineType, defineArrayMember} from 'sanity'
+
+
 /**
-* This configuration file lets you run `$ sanity [command]` in this folder
-* Go to https://www.sanity.io/docs/cli to learn more.
-**/
-import { defineCliConfig } from 'sanity/cli'
+ * This is the schema type for block content used in the post document type
+ * Importing this type into the studio configuration's `schema` property
+ * lets you reuse it in other document types with:
+ *  {
+ *    name: 'someName',
+ *    title: 'Some title',
+ *    type: 'blockContent'
+ *  }
+ */
 
-const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID
-const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET
+export const blockContentType = defineType({
+  title: 'Block Content',
+  name: 'blockContent',
+  type: 'array',
+  of: [
+    defineArrayMember({
+      type: 'block',
+      // Styles let you define what blocks can be marked up as. The default
+      // set corresponds with HTML tags, but you can set any title or value
+      // you want, and decide how you want to deal with it where you want to
+      // use your content.
+      styles: [
+        {title: 'Normal', value: 'normal'},
+        {title: 'H1', value: 'h1'},
+        {title: 'H2', value: 'h2'},
+        {title: 'H3', value: 'h3'},
+        {title: 'H4', value: 'h4'},
+        {title: 'Quote', value: 'blockquote'},
+      ],
+      lists: [{title: 'Bullet', value: 'bullet'}],
+      // Marks let you mark up inline text in the Portable Text Editor
+      marks: {
+        // Decorators usually describe a single property – e.g. a typographic
+        // preference or highlighting
+        decorators: [
+          {title: 'Strong', value: 'strong'},
+          {title: 'Emphasis', value: 'em'},
+        ],
+        // Annotations can be any object structure – e.g. a link or a footnote.
+        annotations: [
+          {
+            title: 'URL',
+            name: 'link',
+            type: 'object',
+            fields: [
+              {
+                title: 'URL',
+                name: 'href',
+                type: 'url',
+              },
+            ],
+          },
+        ],
+      },
+    }),
+    // You can add additional types here. Note that you can't use
+    // primitive types such as 'string' and 'number' in the same array
+    // as a block type.
+    defineArrayMember({
+  type: 'image',
+  options: {hotspot: true},
+      fields: [
+        {
+          name: 'alt',
+          type: 'string',
+          title: 'Alternative Text',
+        }
+      ]
+    }),
+  ],
+})
 
-export default defineCliConfig({ api: { projectId, dataset } })
+
+====================================================================================================
+./sanity/schemaTypes/categoryType.ts
+====================================================================================================
+import {defineField, defineType} from 'sanity'
+
+export const videoType = defineType({
+  name: 'video',
+  title: 'Видео',
+  type: 'document',
+
+  fields: [
+
+    defineField({
+      name: 'title',
+      title: 'Название видео',
+      type: 'string',
+    }),
+
+    defineField({
+      name: 'description',
+      title: 'Описание',
+      type: 'text',
+    }),
+
+    defineField({
+      name: 'youtubeUrl',
+      title: 'Ссылка YouTube',
+      type: 'url',
+    }),
+
+    defineField({
+      name: 'date',
+      title: 'Дата публикации',
+      type: 'date',
+    }),
+
+    defineField({
+      name: 'cover',
+      title: 'Обложка',
+      type: 'image',
+      options: {
+        hotspot: true,
+      },
+    }),
+
+  ],
+})
+
+====================================================================================================
+./sanity/schemaTypes/complaintType.ts
+====================================================================================================
+import {
+  defineArrayMember,
+  defineField,
+  defineType,
+} from "sanity";
+
+import {
+  COMPLAINT_CATEGORIES,
+  COMPLAINT_SOURCES,
+  COMPLAINT_STATUSES,
+  getComplaintCategoryTitle,
+  getComplaintStatusTitle,
+} from "@/lib/complaints";
+
+export const complaintType = defineType({
+  name: "complaint",
+  title: "Экологические обращения",
+  type: "document",
+
+  initialValue: () => ({
+    status: "moderation",
+    source: "website",
+    isPublic: false,
+    createdAt: new Date().toISOString(),
+  }),
+
+  fields: [
+    defineField({
+      name: "complaintId",
+      title: "Номер обращения",
+      type: "string",
+      description:
+        "Уникальный публичный номер обращения, например GF-000001.",
+      readOnly: true,
+      validation: (Rule) =>
+        Rule.required().regex(/^GF-\d{6}$/, {
+          name: "номер обращения",
+          invert: false,
+        }),
+    }),
+
+    defineField({
+      name: "title",
+      title: "Название проблемы",
+      type: "string",
+      validation: (Rule) =>
+        Rule.required()
+          .min(5)
+          .max(140)
+          .error(
+            "Название должно содержать от 5 до 140 символов.",
+          ),
+    }),
+
+    defineField({
+      name: "description",
+      title: "Описание проблемы",
+      type: "text",
+      rows: 8,
+      validation: (Rule) =>
+        Rule.required()
+          .min(20)
+          .max(3000)
+          .error(
+            "Описание должно содержать от 20 до 3000 символов.",
+          ),
+    }),
+
+    defineField({
+      name: "category",
+      title: "Категория нарушения",
+      type: "string",
+      options: {
+        list: COMPLAINT_CATEGORIES.map((category) => ({
+          title: category.title,
+          value: category.value,
+        })),
+      },
+      validation: (Rule) => Rule.required(),
+    }),
+
+    defineField({
+      name: "region",
+      title: "Регион",
+      type: "string",
+      validation: (Rule) => Rule.required().max(150),
+    }),
+
+    defineField({
+      name: "address",
+      title: "Адрес или описание места",
+      type: "string",
+      description:
+        "Адрес определяется по выбранной точке на карте или уточняется вручную.",
+      validation: (Rule) =>
+        Rule.required()
+          .min(3)
+          .max(500)
+          .error(
+            "Укажите адрес или описание места нарушения.",
+          ),
+    }),
+
+    defineField({
+      name: "location",
+      title: "Координаты",
+      type: "geopoint",
+      description:
+        "Точка, которая будет отображаться на Экокарте.",
+      validation: (Rule) => Rule.required(),
+    }),
+
+    defineField({
+      name: "photos",
+      title: "Фотографии",
+      type: "array",
+      description: "Можно загрузить до пяти фотографий.",
+      options: {
+        layout: "grid",
+      },
+      of: [
+        defineArrayMember({
+          type: "image",
+          options: {
+            hotspot: false,
+          },
+          fields: [
+            defineField({
+              name: "alt",
+              title: "Описание фотографии",
+              type: "string",
+              validation: (Rule) => Rule.max(250),
+            }),
+          ],
+        }),
+      ],
+      validation: (Rule) =>
+        Rule.required()
+          .min(1)
+          .max(5)
+          .error(
+            "Добавьте от одной до пяти фотографий.",
+          ),
+    }),
+
+    defineField({
+      name: "videoUrl",
+      title: "Ссылка на видео",
+      type: "url",
+      description:
+        "Необязательная ссылка на видео с места нарушения.",
+      validation: (Rule) =>
+        Rule.uri({
+          scheme: ["http", "https"],
+        }),
+    }),
+
+    defineField({
+      name: "reporter",
+      title: "Данные заявителя",
+      type: "object",
+      description:
+        "Эти данные не отображаются на публичной Экокарте.",
+      fields: [
+        defineField({
+          name: "name",
+          title: "Имя",
+          type: "string",
+          validation: (Rule) => Rule.max(150),
+        }),
+
+        defineField({
+          name: "phone",
+          title: "Телефон",
+          type: "string",
+          validation: (Rule) => Rule.max(50),
+        }),
+
+        defineField({
+          name: "email",
+          title: "Электронная почта",
+          type: "email",
+        }),
+      ],
+      validation: (Rule) =>
+        Rule.custom((reporter) => {
+          if (!reporter || typeof reporter !== "object") {
+            return "Укажите электронную почту или телефон заявителя.";
+          }
+
+          const phone =
+            "phone" in reporter &&
+            typeof reporter.phone === "string"
+              ? reporter.phone.trim()
+              : "";
+
+          const email =
+            "email" in reporter &&
+            typeof reporter.email === "string"
+              ? reporter.email.trim()
+              : "";
+
+          if (!phone && !email) {
+            return "Укажите электронную почту или телефон заявителя.";
+          }
+
+          return true;
+        }),
+    }),
+
+    defineField({
+      name: "source",
+      title: "Источник обращения",
+      type: "string",
+      options: {
+        list: COMPLAINT_SOURCES.map((source) => ({
+          title: source.title,
+          value: source.value,
+        })),
+      },
+      initialValue: "website",
+      validation: (Rule) => Rule.required(),
+    }),
+
+    defineField({
+      name: "status",
+      title: "Статус",
+      type: "string",
+      options: {
+        list: COMPLAINT_STATUSES.map((status) => ({
+          title: status.title,
+          value: status.value,
+        })),
+        layout: "radio",
+      },
+      initialValue: "moderation",
+      validation: (Rule) => Rule.required(),
+    }),
+
+    defineField({
+      name: "isPublic",
+      title: "Опубликовано на Экокарте",
+      type: "boolean",
+      description:
+        "Включите после проверки обращения. Контактные данные заявителя публично не отображаются.",
+      initialValue: false,
+      validation: (Rule) => Rule.required(),
+    }),
+
+    defineField({
+      name: "createdAt",
+      title: "Дата поступления",
+      type: "datetime",
+      readOnly: true,
+      validation: (Rule) => Rule.required(),
+    }),
+
+    defineField({
+      name: "publishedAt",
+      title: "Дата публикации",
+      type: "datetime",
+      description:
+        "Заполняется после публикации обращения на Экокарте.",
+      hidden: ({ document }) =>
+        document?.isPublic !== true,
+    }),
+
+    defineField({
+      name: "adminComment",
+      title: "Внутренний комментарий",
+      type: "text",
+      rows: 5,
+      description:
+        "Служебная информация. На публичной Экокарте не отображается.",
+    }),
+  ],
+
+  orderings: [
+    {
+      title: "Сначала новые",
+      name: "createdAtDesc",
+      by: [
+        {
+          field: "createdAt",
+          direction: "desc",
+        },
+      ],
+    },
+    {
+      title: "Сначала старые",
+      name: "createdAtAsc",
+      by: [
+        {
+          field: "createdAt",
+          direction: "asc",
+        },
+      ],
+    },
+  ],
+
+  preview: {
+    select: {
+      title: "title",
+      complaintId: "complaintId",
+      status: "status",
+      category: "category",
+      region: "region",
+      isPublic: "isPublic",
+      media: "photos.0",
+    },
+
+    prepare(selection) {
+      const {
+        title,
+        complaintId,
+        status,
+        category,
+        region,
+        isPublic,
+        media,
+      } = selection;
+
+      const publicId =
+        typeof complaintId === "string" && complaintId
+          ? complaintId
+          : "Без номера";
+
+      const statusTitle = getComplaintStatusTitle(
+        typeof status === "string"
+          ? status
+          : undefined,
+      );
+
+      const categoryTitle = getComplaintCategoryTitle(
+        typeof category === "string"
+          ? category
+          : undefined,
+      );
+
+      const publicationTitle =
+        isPublic === true
+          ? "На Экокарте"
+          : "Не опубликовано";
+
+      const regionTitle =
+        typeof region === "string" && region
+          ? ` · ${region}`
+          : "";
+
+      return {
+        title:
+          typeof title === "string" && title
+            ? title
+            : "Без названия",
+        subtitle: `${publicId} · ${statusTitle} · ${categoryTitle} · ${publicationTitle}${regionTitle}`,
+        media,
+      };
+    },
+  },
+});
+
+====================================================================================================
+./sanity/schemaTypes/contactType.ts
+====================================================================================================
+import {defineField, defineType} from 'sanity'
 
 
-==================================================
-FILE: sanity/schemaTypes/index.ts
-==================================================
+export const contactType = defineType({
+
+  name: 'contact',
+
+  title: 'Контакты',
+
+  type: 'document',
+
+
+  fields: [
+
+
+    defineField({
+
+      name: 'name',
+
+      title: 'Имя',
+
+      type: 'string',
+
+    }),
+
+
+
+    defineField({
+
+      name: 'photo',
+
+      title: 'Фото',
+
+      type: 'image',
+
+      options:{
+        hotspot:true
+      }
+
+    }),
+
+
+
+    defineField({
+
+      name:'description',
+
+      title:'Описание',
+
+      type:'text'
+
+    }),
+
+
+
+    defineField({
+
+      name:'youtube',
+
+      title:'YouTube',
+
+      type:'url'
+
+    }),
+
+
+
+    defineField({
+
+      name:'instagram',
+
+      title:'Instagram',
+
+      type:'url'
+
+    }),
+
+
+
+    defineField({
+
+      name:'tiktok',
+
+      title:'TikTok',
+
+      type:'url'
+
+    }),
+
+
+
+    defineField({
+
+      name:'telegram',
+
+      title:'Telegram',
+
+      type:'url'
+
+    }),
+
+
+
+    defineField({
+
+      name:'email',
+
+      title:'Email',
+
+      type:'string'
+
+    }),
+
+
+
+    defineField({
+
+      name:'phone',
+
+      title:'Телефон',
+
+      type:'string'
+
+    }),
+
+
+  ]
+
+})
+
+====================================================================================================
+./sanity/schemaTypes/index.ts
+====================================================================================================
 import {type SchemaTypeDefinition} from 'sanity'
 
 import {blockContentType} from './blockContentType'
@@ -1515,76 +10010,289 @@ export const schema: {types: SchemaTypeDefinition[]} = {
   ],
 }
 
-==================================================
-DIRECTORY STRUCTURE (src/app/lib/components/sanity)
-==================================================
-app
-app/api
-app/api/complaints
-app/api/complaints/route.ts
-app/articles
-app/articles/[slug]
-app/articles/[slug]/page.tsx
-app/articles/page.tsx
-app/contacts
-app/contacts/page.tsx
-app/favicon.ico
-app/globals.css
-app/layout.tsx
-app/map
-app/map/page.tsx
-app/map/report
-app/map/report/page.tsx
-app/news
-app/news/page.tsx
-app/page.tsx
-app/posts
-app/posts/[slug]
-app/posts/[slug]/page.tsx
-app/posts/page.tsx
-app/science
-app/science/page.tsx
-app/studio
-app/studio/[[...tool]]
-app/studio/[[...tool]]/page.tsx
-app/videos
-app/videos/[slug]
-app/videos/[slug]/page.tsx
-app/videos/page.tsx
-components
-components/BackButton.tsx
-components/ContactButtons.tsx
-components/EcoMap.tsx
-components/Footer.tsx
-components/Header.tsx
-components/HomeHeader.tsx
-components/ImageCarousel.tsx
-components/LocationPicker.tsx
-components/PageBackground.tsx
-components/Pagination.tsx
-components/SectionCards.tsx
-components/SectionHeader.tsx
-components/SectionNavigation.tsx
-components/VideoCard.tsx
-lib
-lib/regions.ts
-sanity
-sanity/.DS_Store
-sanity/env.ts
-sanity/lib
-sanity/lib/client.ts
-sanity/lib/image.ts
-sanity/lib/live.ts
-sanity/lib/writeClient.ts
-sanity/sanity
-sanity/schemaTypes
-sanity/schemaTypes/articleType.ts
-sanity/schemaTypes/authorType.ts
-sanity/schemaTypes/blockContentType.ts
-sanity/schemaTypes/categoryType.ts
-sanity/schemaTypes/complaintType.ts
-sanity/schemaTypes/contactType.ts
-sanity/schemaTypes/index.ts
-sanity/schemaTypes/postType.ts
-sanity/schemaTypes/videoType.ts
-sanity/structure.ts
+====================================================================================================
+./sanity/schemaTypes/postType.ts
+====================================================================================================
+import {defineField, defineType} from 'sanity'
+
+
+export const postType = defineType({
+
+  name: 'post',
+
+  title: 'Публикации',
+
+  type: 'document',
+
+
+  fields: [
+
+
+    defineField({
+
+      name:'title',
+
+      title:'Заголовок',
+
+      type:'string',
+
+    }),
+
+
+
+    defineField({
+
+      name:'slug',
+
+      title:'URL адрес',
+
+      type:'slug',
+
+      options:{
+
+        source:'title',
+
+        maxLength:96
+
+      }
+
+    }),
+
+
+
+    defineField({
+
+      name:'images',
+
+      title:'Картинки публикации',
+
+      type:'array',
+
+      validation: Rule =>
+        Rule.max(20),
+
+
+      options:{
+
+        layout:'grid'
+
+      },
+
+
+      of:[
+
+        {
+
+          type:'image',
+
+          options:{
+
+            hotspot:false
+
+          }
+
+        }
+
+      ]
+
+    }),
+
+
+
+    defineField({
+
+      name:'description',
+
+      title:'Описание',
+
+      type:'text',
+
+      rows:5
+
+    }),
+
+
+
+    defineField({
+
+      name:'date',
+
+      title:'Дата публикации',
+
+      type:'date'
+
+    }),
+
+
+
+    defineField({
+
+      name:'category',
+
+      title:'Категория',
+
+      type:'string',
+
+      options:{
+
+        list:[
+
+          {
+            title:'Экология',
+            value:'eco'
+          },
+
+          {
+            title:'Животные',
+            value:'animals'
+          },
+
+          {
+            title:'Природа',
+            value:'nature'
+          },
+
+          {
+            title:'Другое',
+            value:'other'
+          }
+
+        ]
+
+      }
+
+    })
+
+  ]
+
+})
+
+====================================================================================================
+./sanity/schemaTypes/videoType.ts
+====================================================================================================
+import {defineField, defineType} from 'sanity'
+
+export const videoType = defineType({
+
+  name: 'video',
+
+  title: 'Видео',
+
+  type: 'document',
+
+  fields: [
+
+    defineField({
+      name: 'slug',
+      title: 'URL адрес',
+      type: 'slug',
+      options: {
+        source: 'title',
+        maxLength: 96,
+      },
+    }),
+
+
+    defineField({
+      name: 'title',
+      title: 'Название видео',
+      type: 'string',
+    }),
+
+
+    defineField({
+      name: 'description',
+      title: 'Описание',
+      type: 'text',
+    }),
+
+
+    defineField({
+      name: 'youtubeUrl',
+      title: 'Ссылка YouTube',
+      type: 'url',
+    }),
+
+
+    defineField({
+      name: 'date',
+      title: 'Дата публикации',
+      type: 'date',
+    }),
+
+
+    defineField({
+      name: 'cover',
+      title: 'Обложка',
+      type: 'image',
+      options: {
+        hotspot: true,
+      },
+    }),
+
+  ],
+
+})
+
+====================================================================================================
+./sanity/structure.ts
+====================================================================================================
+import {StructureResolver} from 'sanity/structure'
+
+export const structure: StructureResolver = (S) =>
+  S.list()
+    .title('Контент')
+    .items([
+      S.documentTypeListItem('video').title('Видео'),
+
+      S.documentTypeListItem('article').title('Статьи'),
+
+      S.documentTypeListItem('post').title('Публикации'),
+
+      S.documentTypeListItem('contact').title('Контакты'),
+
+      S.divider(),
+
+      S.documentTypeListItem('complaint').title('Жалобы граждан'),
+    ])
+
+====================================================================================================
+./tsconfig.json
+====================================================================================================
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"],
+      "ymaps3": ["./node_modules/@yandex/ymaps3-types"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "global.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts"
+  ],
+  "exclude": ["node_modules"]
+}
+

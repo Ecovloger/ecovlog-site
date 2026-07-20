@@ -458,11 +458,11 @@ export async function POST(request: Request) {
       "Описание проблемы",
     );
 
-    if (description.length < 20) {
-      throw new ComplaintValidationError(
-        "Описание должно содержать не менее 20 символов",
-      );
-    }
+    if (description.length > 2000) {
+  throw new ComplaintValidationError(
+    "Описание не должно превышать 2000 символов",
+  );
+}
 
     const category = getCategory(formData);
 

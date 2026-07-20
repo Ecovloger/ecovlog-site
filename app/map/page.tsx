@@ -9,7 +9,7 @@ import { client } from "@/sanity/lib/client";
 export const metadata: Metadata = {
   title: "Народная карта экологических нарушений",
   description:
-    "Сообщите об экологическом нарушении на Народной карте. Мы добиваемся устранения нарушений и показываем результаты работы.",
+    "Откройте Народную карту экологических нарушений или сообщите о новой экологической проблеме.",
 };
 
 export const revalidate = 60;
@@ -25,13 +25,15 @@ const STATISTICS_QUERY = `
     "total": count(
       *[
         _type == "complaint" &&
-        status in ["inProgress", "resolved"]
+        isPublic == true &&
+        status in ["accepted", "inProgress", "resolved"]
       ]
     ),
 
     "resolved": count(
       *[
         _type == "complaint" &&
+        isPublic == true &&
         status == "resolved"
       ]
     ),
@@ -39,6 +41,7 @@ const STATISTICS_QUERY = `
     "inProgress": count(
       *[
         _type == "complaint" &&
+        isPublic == true &&
         status == "inProgress"
       ]
     )
@@ -47,9 +50,14 @@ const STATISTICS_QUERY = `
 
 async function getStatistics(): Promise<ComplaintStatistics> {
   try {
-    return await client.fetch<ComplaintStatistics>(STATISTICS_QUERY);
+    return await client.fetch<ComplaintStatistics>(
+      STATISTICS_QUERY,
+    );
   } catch (error) {
-    console.error("Failed to load complaint statistics:", error);
+    console.error(
+      "Failed to load complaint statistics:",
+      error,
+    );
 
     return {
       total: 0,
@@ -67,7 +75,7 @@ function LocationIcon() {
   return (
     <svg
       aria-hidden="true"
-      className="h-5 w-5 shrink-0"
+      className="h-5 w-5 shrink-0 md:h-6 md:w-6"
       fill="none"
       viewBox="0 0 24 24"
     >
@@ -84,6 +92,32 @@ function LocationIcon() {
         cy="10"
         r="2.5"
         stroke="currentColor"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
+function MapIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4 shrink-0 md:h-5 md:w-5"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <path
+        d="m9 18-6 3V6l6-3 6 3 6-3v15l-6 3-6-3Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+
+      <path
+        d="M9 3v15M15 6v15"
+        stroke="currentColor"
+        strokeLinecap="round"
         strokeWidth="1.8"
       />
     </svg>
@@ -204,21 +238,27 @@ export default async function MapPage() {
         className="
           mx-auto
           max-w-[1400px]
-          px-4
-          pb-14
-          pt-2
+          px-3
+          pb-12
+          pt-1
+          sm:px-4
           md:px-6
-          md:pb-24
-          md:pt-20
+          md:pb-20
+          md:pt-6
         "
       >
         <div className="text-center">
           <h1
             className="
-              text-3xl
+              mx-auto
+              max-w-5xl
+              text-2xl
               font-bold
+              leading-tight
               tracking-tight
-              md:text-5xl
+              sm:text-3xl
+              md:text-4xl
+              lg:text-5xl
             "
           >
             Народная карта экологических нарушений
@@ -227,70 +267,62 @@ export default async function MapPage() {
           <p
             className="
               mx-auto
-              mt-4
+              mt-3
               max-w-3xl
-              text-base
+              text-sm
               leading-relaxed
               text-white/60
-              md:mt-6
-              md:text-xl
+              sm:text-base
+              md:mt-4
+              md:text-lg
             "
           >
-            Здесь вы отмечаете экологические нарушения, а мы добиваемся
-            их устранения и показываем результаты работы.
+            Здесь вы отмечаете экологические нарушения, а мы
+            добиваемся их устранения и показываем результаты
+            работы.
           </p>
         </div>
 
-        <Link
-          aria-label="Сообщить об экологическом нарушении"
+        <div
           className="
             group
             relative
-            mt-8
-            block
+            mt-5
             overflow-hidden
-            rounded-[28px]
+            rounded-[22px]
             border
             border-white/10
             bg-white/[0.03]
-            shadow-[0_30px_100px_rgba(0,0,0,0.45)]
-            outline-none
-            transition
-            duration-500
-            hover:border-white/20
-            hover:shadow-[0_35px_120px_rgba(0,0,0,0.6)]
-            focus-visible:ring-2
-            focus-visible:ring-white/70
-            focus-visible:ring-offset-4
-            focus-visible:ring-offset-neutral-950
-            md:mt-12
-            md:rounded-[36px]
+            shadow-[0_24px_80px_rgba(0,0,0,0.4)]
+            md:mt-7
+            md:rounded-[30px]
           "
-          href="/map/report"
         >
           <div
             className="
               relative
-              aspect-[16/10]
-              min-h-[360px]
+              h-[260px]
               overflow-hidden
-              sm:aspect-[16/8]
-              md:min-h-[500px]
+              min-[390px]:h-[280px]
+              sm:h-[330px]
+              md:h-[410px]
+              lg:h-[450px]
+              xl:h-[480px]
             "
           >
             <Image
-              alt=""
+              alt="Народная карта экологических нарушений"
               className="
                 object-cover
                 transition-transform
                 duration-700
                 ease-out
-                group-hover:scale-[1.035]
+                group-hover:scale-[1.025]
               "
               fill
               priority
               sizes="
-                (max-width: 768px) 100vw,
+                (max-width: 640px) 100vw,
                 (max-width: 1400px) 96vw,
                 1400px
               "
@@ -302,34 +334,17 @@ export default async function MapPage() {
                 absolute
                 inset-0
                 bg-gradient-to-b
-                from-black/10
-                via-black/15
-                to-black/45
-                transition-colors
-                duration-500
-                group-hover:from-black/5
-                group-hover:via-black/10
-                group-hover:to-black/35
+                from-black/15
+                via-black/25
+                to-black/60
               "
             />
 
             <div
               className="
-                pointer-events-none
                 absolute
-                inset-y-0
-                -left-1/2
-                w-1/3
-                -skew-x-12
-                bg-gradient-to-r
-                from-transparent
-                via-white/10
-                to-transparent
-                opacity-0
-                transition-all
-                duration-1000
-                group-hover:left-[120%]
-                group-hover:opacity-100
+                inset-0
+                bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.12)_55%,rgba(0,0,0,0.42)_100%)]
               "
             />
 
@@ -340,51 +355,107 @@ export default async function MapPage() {
                 flex
                 items-center
                 justify-center
-                p-5
+                px-4
+                py-6
+                sm:px-6
               "
             >
               <div
                 className="
                   flex
+                  w-full
+                  max-w-[520px]
+                  flex-col
                   items-center
                   gap-3
-                  rounded-full
-                  border
-                  border-white/25
-                  bg-white/15
-                  px-6
-                  py-4
-                  text-base
-                  font-semibold
-                  text-white
-                  shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_18px_50px_rgba(0,0,0,0.3)]
-                  backdrop-blur-2xl
-                  transition
-                  duration-500
-                  group-hover:-translate-y-1
-                  group-hover:scale-[1.03]
-                  group-hover:border-white/40
-                  group-hover:bg-white/20
-                  md:px-9
-                  md:py-5
-                  md:text-xl
+                  md:gap-4
                 "
               >
-                <LocationIcon />
-                <span>Сообщить о нарушении</span>
+                <Link
+                  className="
+                    group/button
+                    inline-flex
+                    w-full
+                    items-center
+                    justify-center
+                    gap-2.5
+                    rounded-full
+                    border
+                    border-white/30
+                    bg-black/25
+                    px-5
+                    py-4
+                    text-base
+                    font-bold
+                    text-white
+                    shadow-[0_18px_55px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.16)]
+                    backdrop-blur-2xl
+                    transition
+                    duration-300
+                    hover:-translate-y-1
+                    hover:border-white/50
+                    hover:bg-white/[0.12]
+                    hover:shadow-[0_24px_65px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.22)]
+                    md:px-8
+                    md:py-5
+                    md:text-xl
+                  "
+                  href="/map/report"
+                >
+                  <LocationIcon />
+
+                  <span>Сообщить о нарушении</span>
+                </Link>
+
+                <Link
+                  className="
+                    group/button
+                    inline-flex
+                    w-[88%]
+                    items-center
+                    justify-center
+                    gap-2
+                    rounded-full
+                    border
+                    border-white/20
+                    bg-black/20
+                    px-5
+                    py-3
+                    text-sm
+                    font-semibold
+                    text-white/90
+                    shadow-[0_14px_40px_rgba(0,0,0,0.38),inset_0_1px_0_rgba(255,255,255,0.1)]
+                    backdrop-blur-2xl
+                    transition
+                    duration-300
+                    hover:-translate-y-1
+                    hover:border-white/40
+                    hover:bg-white/[0.1]
+                    hover:text-white
+                    hover:shadow-[0_20px_50px_rgba(0,0,0,0.48),inset_0_1px_0_rgba(255,255,255,0.18)]
+                    sm:w-[76%]
+                    md:px-7
+                    md:py-4
+                    md:text-base
+                  "
+                  href="/map/explore"
+                >
+                  <MapIcon />
+
+                  <span>Открыть Экокарту</span>
+                </Link>
               </div>
             </div>
           </div>
-        </Link>
+        </div>
 
         <div
           className="
-            mt-5
+            mt-4
             grid
-            grid-cols-1
-            gap-3
-            sm:grid-cols-3
-            md:mt-7
+            grid-cols-3
+            gap-2
+            md:mt-5
             md:gap-5
           "
         >
@@ -392,22 +463,24 @@ export default async function MapPage() {
             <div
               className="
                 relative
+                min-w-0
                 overflow-hidden
-                rounded-[24px]
+                rounded-[18px]
                 border
                 border-white/10
                 bg-white/[0.055]
-                px-5
-                py-6
+                px-3
+                py-4
                 backdrop-blur-2xl
                 transition
                 duration-300
                 hover:-translate-y-1
                 hover:border-white/20
                 hover:bg-white/[0.075]
-                md:rounded-[28px]
+                sm:px-4
+                md:rounded-[26px]
                 md:px-7
-                md:py-8
+                md:py-7
               "
               key={card.label}
             >
@@ -428,15 +501,19 @@ export default async function MapPage() {
                 className="
                   relative
                   flex
-                  items-center
-                  justify-between
-                  gap-4
+                  flex-col
+                  items-start
+                  gap-3
+                  md:flex-row
+                  md:items-center
+                  md:justify-between
+                  md:gap-4
                 "
               >
-                <div>
+                <div className="min-w-0">
                   <div
                     className="
-                      text-3xl
+                      text-2xl
                       font-bold
                       tracking-tight
                       md:text-4xl
@@ -447,10 +524,13 @@ export default async function MapPage() {
 
                   <div
                     className="
-                      mt-2
-                      text-sm
+                      mt-1
+                      truncate
+                      text-xs
                       font-medium
                       text-white/55
+                      sm:text-sm
+                      md:mt-2
                       md:text-base
                     "
                   >
@@ -460,7 +540,7 @@ export default async function MapPage() {
 
                 <div
                   className="
-                    flex
+                    hidden
                     h-12
                     w-12
                     shrink-0
@@ -471,7 +551,7 @@ export default async function MapPage() {
                     border-white/10
                     bg-white/[0.07]
                     text-white/70
-                    shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]
+                    md:flex
                   "
                 >
                   <StatisticsIcon type={card.type} />

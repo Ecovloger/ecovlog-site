@@ -5,6 +5,7 @@ import { Oswald } from "next/font/google";
 import Script from "next/script";
 
 import PageBackground from "@/components/PageBackground";
+import YandexMetrika from "@/components/YandexMetrika";
 
 const SITE_URL = "https://ecovloger.ru";
 const SITE_NAME = "EcoVlog";
@@ -168,6 +169,8 @@ export default function RootLayout({
             strategy="beforeInteractive"
           />
         )}
+
+        <YandexMetrika />
       </body>
     </html>
   );

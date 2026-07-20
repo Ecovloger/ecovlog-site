@@ -45,10 +45,9 @@ export const complaintType = defineType({
       type: "string",
       validation: (Rule) =>
         Rule.required()
-          .min(5)
           .max(140)
           .error(
-            "Название должно содержать от 5 до 140 символов.",
+            "Укажите название проблемы длиной не более 140 символов.",
           ),
     }),
 
@@ -59,10 +58,9 @@ export const complaintType = defineType({
       rows: 8,
       validation: (Rule) =>
         Rule.required()
-          .min(20)
-          .max(3000)
+          .max(2000)
           .error(
-            "Описание должно содержать от 20 до 3000 символов.",
+            "Укажите описание проблемы длиной не более 2000 символов.",
           ),
     }),
 

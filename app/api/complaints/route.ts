@@ -393,11 +393,8 @@ async function createComplaintDocument(
     const latestNumber =
       await getLatestComplaintNumber();
 
-    const complaintNumber =
-      latestNumber + 1 + attempt;
-
     const complaintId =
-      createPublicComplaintId(complaintNumber);
+      createPublicComplaintId(latestNumber + 1);
 
     const document: ComplaintDocument = {
       ...complaintData,
@@ -454,15 +451,9 @@ export async function POST(request: Request) {
     const description = getRequiredText(
       formData,
       "description",
-      3000,
+      2000,
       "Описание проблемы",
     );
-
-    if (description.length > 2000) {
-  throw new ComplaintValidationError(
-    "Описание не должно превышать 2000 символов",
-  );
-}
 
     const category = getCategory(formData);
 

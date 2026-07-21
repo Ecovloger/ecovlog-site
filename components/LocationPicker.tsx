@@ -12,7 +12,8 @@ import type { ReactifiedModule } from "@yandex/ymaps3-types/reactify/reactify";
 
 import type { RegionOption } from "@/lib/regions";
 
-type ReactifiedApi = ReactifiedModule<typeof ymaps3>;
+type ReactifiedApi =
+  ReactifiedModule<typeof ymaps3>;
 
 type LocationPickerProps = {
   region: RegionOption;
@@ -45,6 +46,12 @@ type GeocoderResponse = {
       }>;
     };
   };
+};
+
+type ParsedCoordinates = {
+  coordinates: LngLat;
+  latitude: number;
+  longitude: number;
 };
 
 function waitForYandexMaps(
@@ -102,15 +109,12 @@ function getGeoObjectAddress(
   }
 
   const metadata =
-    geoObject.metaDataProperty
-      ?.GeocoderMetaData;
+    geoObject.metaDataProperty?.GeocoderMetaData;
 
   const formattedAddress =
-    metadata?.Address?.formatted?.trim() ??
-    "";
+    metadata?.Address?.formatted?.trim() ?? "";
 
-  const text =
-    metadata?.text?.trim() ?? "";
+  const text = metadata?.text?.trim() ?? "";
 
   if (formattedAddress) {
     return formattedAddress;
@@ -123,8 +127,7 @@ function getGeoObjectAddress(
   const description =
     geoObject.description?.trim() ?? "";
 
-  const name =
-    geoObject.name?.trim() ?? "";
+  const name = geoObject.name?.trim() ?? "";
 
   if (description && name) {
     return `${description}, ${name}`;
@@ -159,6 +162,278 @@ function getGeoObjectCoordinates(
   return [longitude, latitude];
 }
 
+function isValidLatitude(
+  value: number,
+): boolean {
+  return (
+    Number.isFinite(value) &&
+    value >= -90 &&
+    value <= 90
+  );
+}
+
+function isValidLongitude(
+  value: number,
+): boolean {
+  return (
+    Number.isFinite(value) &&
+    value >= -180 &&
+    value <= 180
+  );
+}
+
+function createParsedCoordinates(
+  latitude: number,
+  longitude: number,
+): ParsedCoordinates | null {
+  if (
+    !isValidLatitude(latitude) ||
+    !isValidLongitude(longitude)
+  ) {
+    return null;
+  }
+
+  return {
+    coordinates: [longitude, latitude],
+    latitude,
+    longitude,
+  };
+}
+
+function parseNumber(
+  value: string | null | undefined,
+): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const normalizedValue = value
+    .trim()
+    .replace(",", ".");
+
+  if (!normalizedValue) {
+    return null;
+  }
+
+  const number = Number(normalizedValue);
+
+  return Number.isFinite(number)
+    ? number
+    : null;
+}
+
+function parseCoordinatePair(
+  value: string,
+  order: "lat-lon" | "lon-lat",
+): ParsedCoordinates | null {
+  const normalizedValue = value.trim();
+
+  const match = normalizedValue.match(
+    /^([+-]?\d{1,3}(?:\.\d+)?)\s*[,;\s]\s*([+-]?\d{1,3}(?:\.\d+)?)$/,
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  const first = parseNumber(match[1]);
+  const second = parseNumber(match[2]);
+
+  if (first === null || second === null) {
+    return null;
+  }
+
+  if (order === "lon-lat") {
+    return createParsedCoordinates(
+      second,
+      first,
+    );
+  }
+
+  return createParsedCoordinates(
+    first,
+    second,
+  );
+}
+
+function parseCoordinatesFromUrl(
+  value: string,
+): ParsedCoordinates | null {
+  let url: URL;
+
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+
+  /*
+   * Яндекс Карты:
+   * https://yandex.ru/maps/?ll=30.552983%2C59.964269
+   *
+   * Параметр ll имеет порядок:
+   * долгота, широта.
+   */
+  const yandexLl = url.searchParams.get("ll");
+
+  if (yandexLl) {
+    const parsed = parseCoordinatePair(
+      yandexLl,
+      "lon-lat",
+    );
+
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  /*
+   * Яндекс Карты также могут передавать
+   * координаты в параметре whatshere[point].
+   */
+  const yandexPoint =
+    url.searchParams.get("whatshere[point]");
+
+  if (yandexPoint) {
+    const parsed = parseCoordinatePair(
+      yandexPoint,
+      "lon-lat",
+    );
+
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  /*
+   * Google Maps:
+   * https://www.google.com/maps/@59.964269,30.552983,15z
+   *
+   * Порядок:
+   * широта, долгота.
+   */
+  const googlePathMatch =
+    url.pathname.match(
+      /@([+-]?\d{1,3}(?:\.\d+)?),([+-]?\d{1,3}(?:\.\d+)?)/,
+    );
+
+  if (googlePathMatch) {
+    const latitude =
+      parseNumber(googlePathMatch[1]);
+
+    const longitude =
+      parseNumber(googlePathMatch[2]);
+
+    if (
+      latitude !== null &&
+      longitude !== null
+    ) {
+      const parsed = createParsedCoordinates(
+        latitude,
+        longitude,
+      );
+
+      if (parsed) {
+        return parsed;
+      }
+    }
+  }
+
+  /*
+   * Google Maps и другие картографические
+   * сервисы могут хранить координаты
+   * в параметрах q, query, destination.
+   */
+  const coordinateQueryParameters = [
+    "q",
+    "query",
+    "destination",
+    "center",
+  ];
+
+  for (const parameterName of coordinateQueryParameters) {
+    const parameterValue =
+      url.searchParams.get(parameterName);
+
+    if (!parameterValue) {
+      continue;
+    }
+
+    const parsed = parseCoordinatePair(
+      parameterValue,
+      "lat-lon",
+    );
+
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  /*
+   * Формат geo:
+   * geo:59.964269,30.552983
+   */
+  if (url.protocol === "geo:") {
+    const geoValue = value.replace(
+      /^geo:/i,
+      "",
+    );
+
+    const parsed = parseCoordinatePair(
+      geoValue.split("?")[0],
+      "lat-lon",
+    );
+
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function parseCoordinatesInput(
+  value: string,
+): ParsedCoordinates | null {
+  const normalizedValue = value.trim();
+
+  if (!normalizedValue) {
+    return null;
+  }
+
+  const coordinatesFromUrl =
+    parseCoordinatesFromUrl(normalizedValue);
+
+  if (coordinatesFromUrl) {
+    return coordinatesFromUrl;
+  }
+
+  /*
+   * Для обычного текста используем привычный
+   * пользователю порядок:
+   *
+   * широта, долгота
+   *
+   * Например:
+   * 59.964269, 30.552983
+   */
+  return parseCoordinatePair(
+    normalizedValue,
+    "lat-lon",
+  );
+}
+
+function formatCoordinates(
+  coordinates: LngLat,
+): string {
+  const longitude = coordinates[0];
+  const latitude = coordinates[1];
+
+  return `${latitude.toFixed(
+    6,
+  )}, ${longitude.toFixed(6)}`;
+}
+
 async function requestGeocoder(
   geocode: string,
 ): Promise<GeocoderGeoObject | undefined> {
@@ -170,14 +445,13 @@ async function requestGeocoder(
     );
   }
 
-  const parameters =
-    new URLSearchParams({
-      apikey: apiKey,
-      geocode,
-      lang: "ru_RU",
-      format: "json",
-      results: "1",
-    });
+  const parameters = new URLSearchParams({
+    apikey: apiKey,
+    geocode,
+    lang: "ru_RU",
+    format: "json",
+    results: "1",
+  });
 
   const response = await fetch(
     `https://geocode-maps.yandex.ru/v1/?${parameters.toString()}`,
@@ -194,9 +468,10 @@ async function requestGeocoder(
       `Ошибка Геокодера Яндекса: ${response.status}`;
 
     try {
-      const errorData = (await response.json()) as {
-        message?: string;
-      };
+      const errorData =
+        (await response.json()) as {
+          message?: string;
+        };
 
       if (errorData.message) {
         errorMessage = errorData.message;
@@ -359,7 +634,6 @@ export default function LocationPicker({
           requestId;
 
         setIsResolvingAddress(true);
-        setSearchError(null);
 
         try {
           const longitude =
@@ -385,9 +659,9 @@ export default function LocationPicker({
 
           updateAddress(
             address ||
-              `${region.name}, координаты: ${latitude.toFixed(
-                6,
-              )}, ${longitude.toFixed(6)}`,
+              `${region.name}, координаты: ${formatCoordinates(
+                coordinates,
+              )}`,
           );
         } catch (error) {
           console.error(
@@ -402,16 +676,15 @@ export default function LocationPicker({
             return;
           }
 
+          /*
+           * Отсутствие адреса не мешает выбрать
+           * точку. Поэтому здесь не показываем
+           * красную ошибку пользователю.
+           */
           updateAddress(
-            `${region.name}, координаты: ${coordinates[1].toFixed(
-              6,
-            )}, ${coordinates[0].toFixed(6)}`,
-          );
-
-          setSearchError(
-            error instanceof Error
-              ? error.message
-              : "Не удалось определить адрес выбранной точки.",
+            `${region.name}, координаты: ${formatCoordinates(
+              coordinates,
+            )}`,
           );
         } finally {
           if (
@@ -456,8 +729,15 @@ export default function LocationPicker({
       (_object, event): void => {
         setSearchError(null);
 
+        const coordinates =
+          event.coordinates;
+
+        setSearchValue(
+          formatCoordinates(coordinates),
+        );
+
         handleCoordinatesChange(
-          event.coordinates,
+          coordinates,
         );
       },
       [handleCoordinatesChange],
@@ -467,6 +747,10 @@ export default function LocationPicker({
     React.useCallback(
       (coordinates: LngLat): void => {
         setSearchError(null);
+
+        setSearchValue(
+          formatCoordinates(coordinates),
+        );
 
         handleCoordinatesChange(
           coordinates,
@@ -483,8 +767,51 @@ export default function LocationPicker({
 
         if (!normalizedQuery) {
           setSearchError(
-            "Введите адрес или название места.",
+            "Введите адрес или координаты.",
           );
+
+          return;
+        }
+
+        setSearchError(null);
+
+        /*
+         * Сначала проверяем, не ввёл ли
+         * пользователь готовые координаты
+         * или ссылку на карту.
+         */
+        const parsedCoordinates =
+          parseCoordinatesInput(
+            normalizedQuery,
+          );
+
+        if (parsedCoordinates) {
+          const {
+            coordinates,
+            latitude,
+            longitude,
+          } = parsedCoordinates;
+
+          geocoderRequestIdRef.current += 1;
+
+          setIsSearching(false);
+          setIsResolvingAddress(false);
+
+          onChange(coordinates);
+
+          setSearchValue(
+            `${latitude.toFixed(
+              6,
+            )}, ${longitude.toFixed(6)}`,
+          );
+
+          setLocation({
+            center: coordinates,
+            zoom: 16,
+            duration: 600,
+          });
+
+          void resolveAddress(coordinates);
 
           return;
         }
@@ -497,7 +824,6 @@ export default function LocationPicker({
 
         setIsSearching(true);
         setIsResolvingAddress(false);
-        setSearchError(null);
 
         try {
           const regionName =
@@ -531,7 +857,7 @@ export default function LocationPicker({
 
           if (!coordinates) {
             setSearchError(
-              "Адрес не найден. Уточните населённый пункт, улицу или номер дома.",
+              "Адрес не найден. Введите другой адрес, координаты или выберите точку на карте.",
             );
 
             return;
@@ -585,6 +911,7 @@ export default function LocationPicker({
       [
         onChange,
         region.name,
+        resolveAddress,
         searchValue,
         updateAddress,
       ],
@@ -650,7 +977,7 @@ export default function LocationPicker({
       <div className="mb-4">
         <div className="flex overflow-hidden rounded-2xl border border-white/10 bg-white shadow-[0_14px_40px_rgba(0,0,0,0.24)]">
           <input
-            aria-label="Поиск адреса"
+            aria-label="Поиск адреса или координат"
             className="min-w-0 flex-1 bg-white px-5 py-4 text-base text-neutral-900 outline-none placeholder:text-neutral-500"
             disabled={isSearching}
             onChange={(event) => {
@@ -665,7 +992,7 @@ export default function LocationPicker({
             onKeyDown={
               handleSearchKeyDown
             }
-            placeholder="Введите адрес или название места"
+            placeholder="Введите адрес или координаты"
             type="text"
             value={searchValue}
           />
@@ -686,6 +1013,10 @@ export default function LocationPicker({
               : "Найти"}
           </button>
         </div>
+
+        <p className="mt-2 px-1 text-xs leading-5 text-white/40">
+          Например: 59.964269, 30.552983
+        </p>
 
         {searchError && (
           <p className="mt-2 px-1 text-sm leading-6 text-red-300">
@@ -730,8 +1061,8 @@ export default function LocationPicker({
         {!value && (
           <div className="pointer-events-none absolute bottom-4 left-4 right-4 flex justify-center md:bottom-6">
             <div className="rounded-full border border-white/15 bg-black/80 px-5 py-3 text-center text-sm font-medium text-white/80 shadow-xl backdrop-blur-xl">
-              Найдите адрес или нажмите
-              на нужное место
+              Введите адрес, вставьте
+              координаты или нажмите на карту
             </div>
           </div>
         )}
@@ -757,9 +1088,9 @@ export default function LocationPicker({
             {isResolvingAddress
               ? "Определяем адрес выбранной точки…"
               : selectedAddress ||
-                `${region.name}, координаты: ${value[1].toFixed(
-                  6,
-                )}, ${value[0].toFixed(6)}`}
+                `${region.name}, координаты: ${formatCoordinates(
+                  value,
+                )}`}
           </p>
         </div>
       )}

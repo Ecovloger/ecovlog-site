@@ -74,6 +74,10 @@ export const COMPLAINT_SOURCES = [
     title: "Добавлено вручную",
   },
   {
+    value: "import",
+    title: "Импорт со старой Экокарты",
+  },
+  {
     value: "telegram",
     title: "Telegram",
   },

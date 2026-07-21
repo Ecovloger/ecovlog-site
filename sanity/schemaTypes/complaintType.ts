@@ -19,7 +19,7 @@ export const complaintType = defineType({
 
   initialValue: () => ({
     status: "moderation",
-    source: "website",
+    source: "admin",
     isPublic: false,
     createdAt: new Date().toISOString(),
   }),
@@ -29,13 +29,79 @@ export const complaintType = defineType({
       name: "complaintId",
       title: "Номер обращения",
       type: "string",
-      description:
-        "Уникальный публичный номер обращения, например GF-000001.",
       readOnly: true,
+      description:
+        "Уникальный публичный номер обращения, например GF-003341.",
+      validation: (Rule) => [
+        Rule.required()
+          .regex(/^GF-\d{6}$/, {
+            name: "номер обращения",
+            invert: false,
+          })
+          .error("Введите номер в формате GF-000001."),
+        Rule.custom(async (value, context) => {
+          if (
+            typeof value !== "string" ||
+            !/^GF-\d{6}$/.test(value)
+          ) {
+            return true;
+          }
+
+          const currentId =
+            typeof context.document?._id === "string"
+              ? context.document._id.replace(/^drafts\./, "")
+              : "";
+
+          const client = context.getClient({
+            apiVersion: "2026-07-01",
+          });
+
+          const duplicateId = await client.fetch<string | null>(
+            `
+              *[
+                _type == "complaint" &&
+                complaintId == $complaintId &&
+                !(_id in [$publishedId, $draftId])
+              ][0]._id
+            `,
+            {
+              complaintId: value,
+              publishedId: currentId,
+              draftId: currentId ? `drafts.${currentId}` : "",
+            },
+          );
+
+          return duplicateId
+            ? "Обращение с таким номером уже существует."
+            : true;
+        }),
+      ],
+    }),
+
+    defineField({
+      name: "legacyId",
+      title: "ID на старой Экокарте",
+      type: "number",
+      description:
+        "Служебный номер записи со старого сайта.",
+      readOnly: true,
+      hidden: ({ document }) =>
+        typeof document?.legacyId !== "number",
+      validation: (Rule) => Rule.integer().positive(),
+    }),
+
+    defineField({
+      name: "legacyUrl",
+      title: "Ссылка на старую Экокарту",
+      type: "url",
+      description:
+        "Исходная страница обращения на старом сайте.",
+      readOnly: true,
+      hidden: ({ document }) =>
+        typeof document?.legacyUrl !== "string",
       validation: (Rule) =>
-        Rule.required().regex(/^GF-\d{6}$/, {
-          name: "номер обращения",
-          invert: false,
+        Rule.uri({
+          scheme: ["http", "https"],
         }),
     }),
 
@@ -112,7 +178,8 @@ export const complaintType = defineType({
       name: "photos",
       title: "Фотографии",
       type: "array",
-      description: "Можно загрузить до пяти фотографий.",
+      description:
+        "Для обращений с сайта обязательна хотя бы одна фотография. Максимум — пять.",
       options: {
         layout: "grid",
       },
@@ -133,12 +200,24 @@ export const complaintType = defineType({
         }),
       ],
       validation: (Rule) =>
-        Rule.required()
-          .min(1)
-          .max(5)
-          .error(
-            "Добавьте от одной до пяти фотографий.",
-          ),
+        Rule.custom((photos, context) => {
+          const count = Array.isArray(photos)
+            ? photos.length
+            : 0;
+
+          if (count > 5) {
+            return "Можно добавить не более пяти фотографий.";
+          }
+
+          if (
+            context.document?.source === "website" &&
+            count < 1
+          ) {
+            return "Добавьте хотя бы одну фотографию.";
+          }
+
+          return true;
+        }),
     }),
 
     defineField({
@@ -166,14 +245,12 @@ export const complaintType = defineType({
           type: "string",
           validation: (Rule) => Rule.max(150),
         }),
-
         defineField({
           name: "phone",
           title: "Телефон",
           type: "string",
           validation: (Rule) => Rule.max(50),
         }),
-
         defineField({
           name: "email",
           title: "Электронная почта",
@@ -181,7 +258,13 @@ export const complaintType = defineType({
         }),
       ],
       validation: (Rule) =>
-        Rule.custom((reporter) => {
+        Rule.custom((reporter, context) => {
+          const source = context.document?.source;
+
+          if (source === "admin" || source === "import") {
+            return true;
+          }
+
           if (!reporter || typeof reporter !== "object") {
             return "Укажите электронную почту или телефон заявителя.";
           }
@@ -198,11 +281,9 @@ export const complaintType = defineType({
               ? reporter.email.trim()
               : "";
 
-          if (!phone && !email) {
-            return "Укажите электронную почту или телефон заявителя.";
-          }
-
-          return true;
+          return phone || email
+            ? true
+            : "Укажите электронную почту или телефон заявителя.";
         }),
     }),
 
@@ -216,7 +297,7 @@ export const complaintType = defineType({
           value: source.value,
         })),
       },
-      initialValue: "website",
+      initialValue: "admin",
       validation: (Rule) => Rule.required(),
     }),
 
@@ -249,7 +330,8 @@ export const complaintType = defineType({
       name: "createdAt",
       title: "Дата поступления",
       type: "datetime",
-      readOnly: true,
+      description:
+        "Для новых обращений заполняется автоматически. Для импортированных записей сохраняется старая дата.",
       validation: (Rule) => Rule.required(),
     }),
 
@@ -258,7 +340,7 @@ export const complaintType = defineType({
       title: "Дата публикации",
       type: "datetime",
       description:
-        "Заполняется после публикации обращения на Экокарте.",
+        "Дата публикации обращения на Экокарте.",
       hidden: ({ document }) =>
         document?.isPublic !== true,
     }),
@@ -277,22 +359,12 @@ export const complaintType = defineType({
     {
       title: "Сначала новые",
       name: "createdAtDesc",
-      by: [
-        {
-          field: "createdAt",
-          direction: "desc",
-        },
-      ],
+      by: [{ field: "createdAt", direction: "desc" }],
     },
     {
       title: "Сначала старые",
       name: "createdAtAsc",
-      by: [
-        {
-          field: "createdAt",
-          direction: "asc",
-        },
-      ],
+      by: [{ field: "createdAt", direction: "asc" }],
     },
   ],
 

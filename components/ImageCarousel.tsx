@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 
 import { urlFor } from "@/sanity/lib/image";
@@ -60,6 +60,19 @@ function getWrappedIndex(index: number, length: number): number {
   return ((index % length) + length) % length;
 }
 
+function isTextInputTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  return (
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT" ||
+    target.isContentEditable
+  );
+}
+
 export default function ImageCarousel({
   images,
   title,
@@ -84,6 +97,54 @@ export default function ImageCarousel({
       setActive(0);
     }
   }, [active, validImages.length]);
+
+  const next = useCallback(() => {
+    if (validImages.length <= 1) {
+      return;
+    }
+
+    setActive((current) =>
+      getWrappedIndex(current + 1, validImages.length),
+    );
+  }, [validImages.length]);
+
+  const previous = useCallback(() => {
+    if (validImages.length <= 1) {
+      return;
+    }
+
+    setActive((current) =>
+      getWrappedIndex(current - 1, validImages.length),
+    );
+  }, [validImages.length]);
+
+  useEffect(() => {
+    if (validImages.length <= 1) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isTextInputTarget(event.target)) {
+        return;
+      }
+
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        next();
+      }
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        previous();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [next, previous, validImages.length]);
 
   const visibleCards = useMemo<VisibleCard[]>(() => {
     const length = validImages.length;
@@ -126,14 +187,6 @@ export default function ImageCarousel({
   if (validImages.length === 0) {
     return null;
   }
-
-  const next = () => {
-    setActive((current) => getWrappedIndex(current + 1, validImages.length));
-  };
-
-  const previous = () => {
-    setActive((current) => getWrappedIndex(current - 1, validImages.length));
-  };
 
   return (
     <div

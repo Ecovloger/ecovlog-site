@@ -36,7 +36,6 @@ const buttonStyle = {
   borderRadius: '6px',
   font: 'inherit',
   fontWeight: 600,
-  cursor: 'pointer',
   color: 'white',
   background: '#2276fc',
 } as const
@@ -54,10 +53,6 @@ const statusStyle = {
   lineHeight: 1.45,
   fontWeight: 600,
 } as const
-
-type ImageAssetDocument = {
-  _id: string
-}
 
 type OptimizedImageItem = {
   _key: string
@@ -185,14 +180,10 @@ export function OptimizedPostImagesInput(
           )
 
           const optimizedFile = await optimizeImage(sourceFile)
-          const asset = await client.assets.upload<ImageAssetDocument>(
-            'image',
-            optimizedFile,
-            {
-              filename: optimizedFile.name,
-              contentType: optimizedFile.type,
-            },
-          )
+          const asset = await client.assets.upload('image', optimizedFile, {
+            filename: optimizedFile.name,
+            contentType: optimizedFile.type,
+          })
 
           uploadedItems.push({
             _key: createArrayKey(),

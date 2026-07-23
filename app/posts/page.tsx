@@ -90,9 +90,10 @@ function getPostImageUrl(image: SanityImage | null): string | null {
 
   try {
     return urlFor(image)
-      .width(900)
-      .height(1200)
+      .width(720)
+      .height(960)
       .fit("max")
+      .quality(72)
       .auto("format")
       .url();
   } catch {
@@ -198,7 +199,7 @@ export default async function PostsPage({
               xl:grid-cols-4
             "
           >
-            {safePosts.map((post) => {
+            {safePosts.map((post, index) => {
               const slug = post.slug?.current?.trim();
 
               if (!slug) {
@@ -253,6 +254,7 @@ export default async function PostsPage({
                             (max-width: 1200px) 33vw,
                             25vw
                           "
+                          priority={index < 2}
                           className="object-contain"
                         />
                       ) : (

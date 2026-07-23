@@ -2,33 +2,69 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+const DEFAULT_SLOGAN = "Начните видеть экологию иначе.";
 
 const sections = [
   {
     title: "Видео",
     image: "/images/video.webp",
     link: "/videos",
+    slogan: "Начните смотреть на привычные вещи по-новому.",
   },
   {
     title: "Новости",
     image: "/images/articles.webp",
     link: "/articles",
+    slogan: "Начните следить за тем, что действительно важно.",
   },
   {
     title: "Публикации",
     image: "/images/posts.webp",
     link: "/posts",
+    slogan: "Начните разбираться глубже.",
   },
   {
     title: "Экокарта",
     image: "/images/map.webp",
     link: "/map",
+    slogan: "Начните менять мир вокруг себя.",
   },
 ];
 
 export default function SectionCards() {
   const [active, setActive] = useState<number | null>(null);
+  const [displayedSlogan, setDisplayedSlogan] = useState(DEFAULT_SLOGAN);
+  const [sloganVisible, setSloganVisible] = useState(false);
+  const isFirstRender = useRef(true);
+
+  const nextSlogan =
+    active === null ? DEFAULT_SLOGAN : sections[active].slogan;
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSloganVisible(true);
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    setSloganVisible(false);
+
+    const timer = window.setTimeout(() => {
+      setDisplayedSlogan(nextSlogan);
+      setSloganVisible(true);
+    }, 160);
+
+    return () => window.clearTimeout(timer);
+  }, [nextSlogan]);
 
   return (
     <section
@@ -46,6 +82,44 @@ export default function SectionCards() {
       <div
         className="
           hidden
+          min-h-[76px]
+          items-center
+          justify-center
+          px-6
+          pb-8
+          md:flex
+        "
+        aria-live="polite"
+      >
+        <p
+          className={`
+            max-w-4xl
+            text-center
+            text-2xl
+            font-medium
+            leading-tight
+            tracking-[-0.025em]
+            text-white/90
+            transition-all
+            duration-300
+            ease-out
+            motion-reduce:transform-none
+            motion-reduce:transition-none
+            lg:text-3xl
+            ${
+              sloganVisible
+                ? "translate-y-0 opacity-100 blur-0"
+                : "translate-y-1.5 opacity-0 blur-[2px]"
+            }
+          `}
+        >
+          {displayedSlogan}
+        </p>
+      </div>
+
+      <div
+        className="
+          hidden
           h-[520px]
           w-full
           gap-5
@@ -58,6 +132,8 @@ export default function SectionCards() {
             href={item.link}
             onMouseEnter={() => setActive(index)}
             onMouseLeave={() => setActive(null)}
+            onFocus={() => setActive(index)}
+            onBlur={() => setActive(null)}
             className={`
               transition-all
               duration-700
@@ -99,11 +175,7 @@ export default function SectionCards() {
                   object-cover
                   transition-transform
                   duration-700
-                  ${
-                    active === index
-                      ? "scale-110"
-                      : "scale-100"
-                  }
+                  ${active === index ? "scale-110" : "scale-100"}
                 `}
               />
 
@@ -137,9 +209,7 @@ export default function SectionCards() {
                     backdrop-blur-xl
                   "
                 >
-                  <h2 className="text-3xl font-bold">
-                    {item.title}
-                  </h2>
+                  <h2 className="text-3xl font-bold">{item.title}</h2>
                 </div>
               </div>
             </div>

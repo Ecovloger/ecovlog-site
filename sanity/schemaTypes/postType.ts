@@ -1,4 +1,4 @@
-import {defineField, defineType} from 'sanity'
+import {defineArrayMember, defineField, defineType} from 'sanity'
 
 import {OptimizedPostImagesInput} from '../components/OptimizedPostImagesInput'
 
@@ -38,8 +38,7 @@ export const postType = defineType({
         layout: 'grid',
       },
       of: [
-        defineField({
-          name: 'postImage',
+        defineArrayMember({
           type: 'image',
           options: {
             hotspot: false,

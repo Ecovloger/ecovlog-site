@@ -15,6 +15,8 @@ const MAX_PHOTOS = 5;
 const MIN_PHOTOS = 1;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const MAX_COMPLAINT_ID_ATTEMPTS = 10;
+const NOTIFICATION_EMAIL = "planetwakeupnow@gmail.com";
+const RESEND_API_URL = "https://api.resend.com/emails";
 
 const ALLOWED_IMAGE_TYPES = new Set([
   "image/jpeg",
@@ -418,6 +420,107 @@ async function createComplaintDocument(
   );
 }
 
+function escapeHtml(value: string | undefined): string {
+  if (!value) {
+    return "Не указано";
+  }
+
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function getStudioComplaintUrl(complaint: ComplaintDocument): string {
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "") ||
+    "https://www.ecovloger.ru";
+
+  return `${siteUrl}/studio/structure/complaint;${encodeURIComponent(complaint._id)}`;
+}
+
+async function sendNewComplaintNotification(
+  complaint: ComplaintDocument,
+): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  const fromEmail =
+    process.env.RESEND_FROM_EMAIL ||
+    "Эковлог <notifications@ecovloger.ru>";
+
+  if (!apiKey) {
+    console.error(
+      "RESEND_API_KEY is not configured. Complaint notification was not sent.",
+    );
+    return;
+  }
+
+  const studioUrl = getStudioComplaintUrl(complaint);
+  const coordinates = `${complaint.location.lat}, ${complaint.location.lng}`;
+
+  const response = await fetch(RESEND_API_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "User-Agent": "ecovlog-site/1.0",
+    },
+    body: JSON.stringify({
+      from: fromEmail,
+      to: [NOTIFICATION_EMAIL],
+      subject: `Новая жалоба на Экокарте — ${complaint.complaintId}`,
+      html: `
+        <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111">
+          <h2 style="margin:0 0 16px">Новая жалоба на Экокарте</h2>
+          <p><strong>Номер:</strong> ${escapeHtml(complaint.complaintId)}</p>
+          <p><strong>Название:</strong> ${escapeHtml(complaint.title)}</p>
+          <p><strong>Категория:</strong> ${escapeHtml(complaint.category)}</p>
+          <p><strong>Регион:</strong> ${escapeHtml(complaint.region)}</p>
+          <p><strong>Адрес:</strong> ${escapeHtml(complaint.address)}</p>
+          <p><strong>Координаты:</strong> ${escapeHtml(coordinates)}</p>
+          <p><strong>Описание:</strong><br>${escapeHtml(complaint.description).replaceAll("\n", "<br>")}</p>
+          <hr style="border:0;border-top:1px solid #ddd;margin:20px 0">
+          <p><strong>Заявитель:</strong> ${escapeHtml(complaint.reporter.name)}</p>
+          <p><strong>Телефон:</strong> ${escapeHtml(complaint.reporter.phone)}</p>
+          <p><strong>Email:</strong> ${escapeHtml(complaint.reporter.email)}</p>
+          <p><strong>Ссылка на видео:</strong> ${escapeHtml(complaint.videoUrl)}</p>
+          <p><strong>Фотографий:</strong> ${complaint.photos.length}</p>
+          <p style="margin-top:24px">
+            <a href="${escapeHtml(studioUrl)}" style="display:inline-block;padding:10px 16px;border-radius:8px;background:#166534;color:#fff;text-decoration:none">
+              Открыть жалобу в админке
+            </a>
+          </p>
+        </div>
+      `,
+      text: [
+        "Новая жалоба на Экокарте",
+        `Номер: ${complaint.complaintId}`,
+        `Название: ${complaint.title}`,
+        `Категория: ${complaint.category}`,
+        `Регион: ${complaint.region}`,
+        `Адрес: ${complaint.address}`,
+        `Координаты: ${coordinates}`,
+        `Описание: ${complaint.description}`,
+        `Заявитель: ${complaint.reporter.name || "Не указано"}`,
+        `Телефон: ${complaint.reporter.phone || "Не указано"}`,
+        `Email: ${complaint.reporter.email || "Не указано"}`,
+        `Ссылка на видео: ${complaint.videoUrl || "Не указано"}`,
+        `Фотографий: ${complaint.photos.length}`,
+        `Админка: ${studioUrl}`,
+      ].join("\n"),
+    }),
+  });
+
+  if (!response.ok) {
+    const responseText = await response.text();
+
+    throw new Error(
+      `Resend returned ${response.status}: ${responseText}`,
+    );
+  }
+}
+
 export async function POST(request: Request) {
   let uploadedPhotos: UploadedPhoto[] = [];
 
@@ -557,6 +660,15 @@ export async function POST(request: Request) {
         isPublic: false,
         createdAt: new Date().toISOString(),
       });
+
+    try {
+      await sendNewComplaintNotification(complaint);
+    } catch (notificationError) {
+      console.error(
+        "Complaint notification error:",
+        notificationError,
+      );
+    }
 
     return NextResponse.json(
       {

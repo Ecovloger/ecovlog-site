@@ -150,24 +150,32 @@ export default function SectionCards() {
             `}
           >
             <div
-              className="
+              className={`
                 relative
                 h-[520px]
                 cursor-pointer
                 overflow-hidden
                 rounded-[2rem]
                 border
-                border-white/10
-                bg-[#1d1b1f]
-                shadow-2xl
-              "
+                bg-white/[0.025]
+                shadow-[0_18px_60px_rgba(0,0,0,0.28)]
+                backdrop-blur-[2px]
+                transition-[border-color,background-color,box-shadow]
+                duration-700
+                ease-[cubic-bezier(0.22,1,0.36,1)]
+                ${
+                  active === index
+                    ? "border-white/20 bg-white/[0.045] shadow-[0_24px_80px_rgba(0,0,0,0.38)]"
+                    : "border-white/10"
+                }
+              `}
             >
               <Image
                 src={item.image}
                 alt={item.title}
                 fill
                 priority
-                quality={85}
+                quality={90}
                 sizes="
                   (min-width:1536px) 25vw,
                   (min-width:1024px) 33vw,
@@ -176,23 +184,31 @@ export default function SectionCards() {
                 "
                 className={`
                   object-contain
+                  p-3
                   transition-transform
                   duration-[1000ms]
                   ease-[cubic-bezier(0.22,1,0.36,1)]
                   motion-reduce:transform-none
                   motion-reduce:transition-none
-                  ${active === index ? "scale-[1.025]" : "scale-100"}
+                  ${
+                    active === index
+                      ? "-translate-y-0.5 scale-[1.018]"
+                      : "translate-y-0 scale-100"
+                  }
                 `}
               />
 
               <div
                 className="
+                  pointer-events-none
                   absolute
-                  inset-0
-                  bg-gradient-to-b
-                  from-black/5
-                  via-transparent
-                  to-black/55
+                  inset-x-0
+                  bottom-0
+                  h-32
+                  bg-gradient-to-t
+                  from-black/50
+                  via-black/10
+                  to-transparent
                 "
               />
 
@@ -209,10 +225,10 @@ export default function SectionCards() {
                     rounded-full
                     border
                     border-white/20
-                    bg-white/10
+                    bg-black/25
                     px-10
                     py-4
-                    shadow-xl
+                    shadow-[0_10px_35px_rgba(0,0,0,0.28)]
                     backdrop-blur-xl
                   "
                 >
@@ -244,9 +260,10 @@ export default function SectionCards() {
               overflow-hidden
               rounded-[1.5rem]
               border
-              border-white/20
-              bg-[#1d1b1f]
-              shadow-xl
+              border-white/12
+              bg-white/[0.025]
+              shadow-[0_14px_40px_rgba(0,0,0,0.24)]
+              backdrop-blur-[2px]
             "
           >
             <Image
@@ -254,19 +271,22 @@ export default function SectionCards() {
               alt={item.title}
               fill
               priority
-              quality={80}
+              quality={85}
               sizes="50vw"
-              className="object-contain"
+              className="object-contain p-2"
             />
 
             <div
               className="
+                pointer-events-none
                 absolute
-                inset-0
-                bg-gradient-to-b
-                from-black/5
-                via-transparent
-                to-black/55
+                inset-x-0
+                bottom-0
+                h-24
+                bg-gradient-to-t
+                from-black/55
+                via-black/10
+                to-transparent
               "
             />
 
@@ -274,7 +294,7 @@ export default function SectionCards() {
               className="
                 absolute
                 inset-x-0
-                bottom-4
+                bottom-3
                 flex
                 justify-center
                 px-2
@@ -285,10 +305,10 @@ export default function SectionCards() {
                   rounded-2xl
                   border
                   border-white/25
-                  bg-white/15
+                  bg-black/30
                   px-4
-                  py-3
-                  shadow-[0_8px_24px_rgba(0,0,0,0.28)]
+                  py-2.5
+                  shadow-[0_8px_24px_rgba(0,0,0,0.25)]
                   backdrop-blur-2xl
                 "
               >

@@ -135,14 +135,16 @@ export default function SectionCards() {
             onFocus={() => setActive(index)}
             onBlur={() => setActive(null)}
             className={`
-              transition-all
-              duration-700
-              ease-[cubic-bezier(0.34,1.56,0.64,1)]
+              min-w-0
+              transition-[flex-grow]
+              duration-[900ms]
+              ease-[cubic-bezier(0.22,1,0.36,1)]
+              motion-reduce:transition-none
               ${
                 active === index
-                  ? "flex-[1.4]"
+                  ? "flex-[1.18]"
                   : active !== null
-                    ? "flex-[0.8]"
+                    ? "flex-[0.94]"
                     : "flex-1"
               }
             `}
@@ -156,6 +158,7 @@ export default function SectionCards() {
                 rounded-[2rem]
                 border
                 border-white/10
+                bg-[#1d1b1f]
                 shadow-2xl
               "
             >
@@ -164,7 +167,7 @@ export default function SectionCards() {
                 alt={item.title}
                 fill
                 priority
-                quality={80}
+                quality={85}
                 sizes="
                   (min-width:1536px) 25vw,
                   (min-width:1024px) 33vw,
@@ -172,10 +175,13 @@ export default function SectionCards() {
                   50vw
                 "
                 className={`
-                  object-cover
+                  object-contain
                   transition-transform
-                  duration-700
-                  ${active === index ? "scale-110" : "scale-100"}
+                  duration-[1000ms]
+                  ease-[cubic-bezier(0.22,1,0.36,1)]
+                  motion-reduce:transform-none
+                  motion-reduce:transition-none
+                  ${active === index ? "scale-[1.025]" : "scale-100"}
                 `}
               />
 
@@ -184,8 +190,9 @@ export default function SectionCards() {
                   absolute
                   inset-0
                   bg-gradient-to-b
-                  from-black/10
-                  to-black/70
+                  from-black/5
+                  via-transparent
+                  to-black/55
                 "
               />
 
@@ -238,6 +245,7 @@ export default function SectionCards() {
               rounded-[1.5rem]
               border
               border-white/20
+              bg-[#1d1b1f]
               shadow-xl
             "
           >
@@ -246,26 +254,30 @@ export default function SectionCards() {
               alt={item.title}
               fill
               priority
-              quality={70}
+              quality={80}
               sizes="50vw"
-              className="object-cover"
+              className="object-contain"
             />
 
             <div
               className="
                 absolute
                 inset-0
-                bg-black/40
+                bg-gradient-to-b
+                from-black/5
+                via-transparent
+                to-black/55
               "
             />
 
             <div
               className="
                 absolute
-                inset-0
+                inset-x-0
+                bottom-4
                 flex
-                items-center
                 justify-center
+                px-2
               "
             >
               <div
@@ -276,7 +288,7 @@ export default function SectionCards() {
                   bg-white/15
                   px-4
                   py-3
-                  shadow-[0_8px_32px_rgba(0,0,0,0.35)]
+                  shadow-[0_8px_24px_rgba(0,0,0,0.28)]
                   backdrop-blur-2xl
                 "
               >

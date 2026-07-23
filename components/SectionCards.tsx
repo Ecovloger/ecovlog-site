@@ -137,14 +137,14 @@ export default function SectionCards() {
             className={`
               min-w-0
               transition-[flex-grow]
-              duration-[900ms]
-              ease-[cubic-bezier(0.22,1,0.36,1)]
+              duration-[1200ms]
+              ease-[cubic-bezier(0.16,1,0.3,1)]
               motion-reduce:transition-none
               ${
                 active === index
-                  ? "z-10 flex-[1.18]"
+                  ? "z-10 flex-[1.12]"
                   : active !== null
-                    ? "z-0 flex-[0.94]"
+                    ? "z-0 flex-[0.96]"
                     : "z-0 flex-1"
               }
             `}
@@ -160,15 +160,15 @@ export default function SectionCards() {
                 bg-white/[0.025]
                 shadow-[0_18px_60px_rgba(0,0,0,0.28)]
                 backdrop-blur-[2px]
-                transition-[transform,border-color,background-color,box-shadow]
-                duration-[900ms]
-                ease-[cubic-bezier(0.22,1,0.36,1)]
+                transition-[transform,border-color,background-color,box-shadow,filter]
+                duration-[1150ms]
+                ease-[cubic-bezier(0.16,1,0.3,1)]
                 motion-reduce:transform-none
                 motion-reduce:transition-none
                 ${
                   active === index
-                    ? "-translate-y-1 scale-[1.012] border-white/20 bg-white/[0.045] shadow-[0_28px_90px_rgba(0,0,0,0.42)]"
-                    : "translate-y-0 scale-100 border-white/10"
+                    ? "-translate-y-1 scale-[1.016] border-white/20 bg-white/[0.045] brightness-[1.035] shadow-[0_30px_95px_rgba(0,0,0,0.44)]"
+                    : "translate-y-0 scale-100 border-white/10 brightness-100"
                 }
               `}
             >
@@ -186,16 +186,15 @@ export default function SectionCards() {
                 "
                 className={`
                   object-contain
-                  p-1
                   transition-transform
-                  duration-[1000ms]
-                  ease-[cubic-bezier(0.22,1,0.36,1)]
+                  duration-[1250ms]
+                  ease-[cubic-bezier(0.16,1,0.3,1)]
                   motion-reduce:transform-none
                   motion-reduce:transition-none
                   ${
                     active === index
-                      ? "-translate-y-0.5 scale-[1.055]"
-                      : "translate-y-0 scale-[1.035]"
+                      ? "-translate-y-0.5 scale-[1.085]"
+                      : "translate-y-0 scale-[1.06]"
                   }
                 `}
               />

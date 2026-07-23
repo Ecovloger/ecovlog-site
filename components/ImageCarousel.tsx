@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 
 import { urlFor } from "@/sanity/lib/image";
 
@@ -17,6 +17,12 @@ type SanityImage = {
 type ImageCarouselProps = {
   images?: SanityImage[] | null;
   title?: string | null;
+};
+
+type VisibleCard = {
+  image: SanityImage;
+  index: number;
+  position: number;
 };
 
 function hasValidImageAsset(
@@ -50,6 +56,10 @@ function getImageUrl(
   }
 }
 
+function getWrappedIndex(index: number, length: number): number {
+  return ((index % length) + length) % length;
+}
+
 export default function ImageCarousel({
   images,
   title,
@@ -75,31 +85,54 @@ export default function ImageCarousel({
     }
   }, [active, validImages.length]);
 
+  const visibleCards = useMemo<VisibleCard[]>(() => {
+    const length = validImages.length;
+
+    if (length === 0) {
+      return [];
+    }
+
+    const maxSideCards = Math.min(2, Math.floor((length - 1) / 2));
+    const positions = Array.from(
+      { length: maxSideCards * 2 + 1 },
+      (_, positionIndex) => positionIndex - maxSideCards,
+    );
+
+    if (length % 2 === 0 && length <= 4) {
+      positions.push(maxSideCards + 1);
+    }
+
+    const usedIndexes = new Set<number>();
+
+    return positions.flatMap((position) => {
+      const index = getWrappedIndex(active + position, length);
+
+      if (usedIndexes.has(index)) {
+        return [];
+      }
+
+      usedIndexes.add(index);
+
+      return [
+        {
+          image: validImages[index],
+          index,
+          position,
+        },
+      ];
+    });
+  }, [active, validImages]);
+
   if (validImages.length === 0) {
     return null;
   }
 
   const next = () => {
-    setActive((current) => (current + 1) % validImages.length);
+    setActive((current) => getWrappedIndex(current + 1, validImages.length));
   };
 
   const previous = () => {
-    setActive(
-      (current) =>
-        (current - 1 + validImages.length) % validImages.length,
-    );
-  };
-
-  const getPosition = (index: number) => {
-    const length = validImages.length;
-
-    let position = (index - active + length) % length;
-
-    if (position > length / 2) {
-      position -= length;
-    }
-
-    return position;
+    setActive((current) => getWrappedIndex(current - 1, validImages.length));
   };
 
   return (
@@ -123,126 +156,102 @@ export default function ImageCarousel({
           md:w-[400px]
         "
       >
-        <AnimatePresence>
-          {validImages.map((image, index) => {
-            const position = getPosition(index);
+        {visibleCards.map(({ image, index, position }) => {
+          const isActive = position === 0;
+          const imageUrl = getImageUrl(image, isActive);
 
-            if (Math.abs(position) > 3) {
-              return null;
-            }
+          if (!imageUrl) {
+            return null;
+          }
 
-            const isActive = position === 0;
-            const imageUrl = getImageUrl(image, isActive);
-
-            if (!imageUrl) {
-              return null;
-            }
-
-            return (
-              <motion.div
-                key={image._key ?? `${imageUrl}-${index}`}
-                onClick={() => {
-                  if (isActive) {
-                    next();
-                  } else {
-                    setActive(index);
-                  }
-                }}
-                drag={isActive ? "x" : false}
-                dragConstraints={{
-                  left: 0,
-                  right: 0,
-                }}
-                onDragEnd={(_, info) => {
-                  if (info.offset.x < -80) {
-                    next();
-                  }
-
-                  if (info.offset.x > 80) {
-                    previous();
-                  }
-                }}
-                animate={{
-                  x: position * 100,
-                  scale:
-                    position === 0
-                      ? 1
-                      : 0.88 - Math.abs(position) * 0.05,
-                  rotate:
-                    position === 0
-                      ? 0
-                      : position > 0
-                        ? 8
-                        : -8,
-                  opacity:
-                    position === 0
-                      ? 1
-                      : Math.max(
-                          0.3,
-                          1 - Math.abs(position) * 0.25,
-                        ),
-                  zIndex: 100 - Math.abs(position),
-                }}
-                transition={{
-                  type: "spring",
-                  stiffness: 170,
-                  damping: 24,
-                }}
+          return (
+            <motion.div
+              key={`${image._key ?? image.asset?._ref ?? image.asset?._id ?? index}-${index}`}
+              onClick={() => {
+                if (isActive) {
+                  next();
+                } else {
+                  setActive(index);
+                }
+              }}
+              drag={isActive ? "x" : false}
+              dragConstraints={{ left: 0, right: 0 }}
+              onDragEnd={(_, info) => {
+                if (info.offset.x < -80) {
+                  next();
+                } else if (info.offset.x > 80) {
+                  previous();
+                }
+              }}
+              animate={{
+                x: position * 100,
+                scale: isActive ? 1 : 0.88 - Math.abs(position) * 0.05,
+                rotate: isActive ? 0 : position > 0 ? 8 : -8,
+                opacity: isActive
+                  ? 1
+                  : Math.max(0.35, 1 - Math.abs(position) * 0.25),
+                zIndex: 100 - Math.abs(position),
+              }}
+              transition={{
+                type: "spring",
+                stiffness: 170,
+                damping: 24,
+              }}
+              className="
+                absolute
+                inset-0
+                flex
+                cursor-pointer
+                items-center
+                justify-center
+              "
+            >
+              <div
                 className="
-                  absolute
-                  inset-0
+                  relative
                   flex
+                  h-full
+                  w-full
                   items-center
                   justify-center
+                  overflow-hidden
+                  rounded-[32px]
+                  border
+                  border-white/20
+                  bg-white/10
+                  p-4
+                  shadow-[0_30px_80px_rgba(0,0,0,0.5)]
+                  backdrop-blur-2xl
                 "
               >
-                <div
-                  className="
-                    relative
-                    flex
-                    h-full
-                    w-full
-                    items-center
-                    justify-center
-                    overflow-hidden
-                    rounded-[32px]
-                    border
-                    border-white/20
-                    bg-white/10
-                    p-4
-                    shadow-[0_30px_80px_rgba(0,0,0,0.5)]
-                    backdrop-blur-2xl
-                  "
-                >
-                  <div className="relative h-full w-full">
-                    <Image
-                      src={imageUrl}
-                      alt={title?.trim() || "Изображение публикации"}
-                      fill
-                      sizes="(max-width: 768px) 300px, 400px"
-                      priority={isActive && index === 0}
-                      unoptimized
-                      className="rounded-2xl object-contain"
-                    />
-                  </div>
-
-                  <div
-                    className="
-                      pointer-events-none
-                      absolute
-                      inset-0
-                      rounded-[32px]
-                      bg-gradient-to-br
-                      from-white/20
-                      via-transparent
-                      to-transparent
-                    "
+                <div className="relative h-full w-full">
+                  <Image
+                    src={imageUrl}
+                    alt={title?.trim() || "Изображение публикации"}
+                    fill
+                    sizes="(max-width: 768px) 300px, 400px"
+                    priority={isActive && active === 0}
+                    unoptimized
+                    className="rounded-2xl object-contain"
                   />
                 </div>
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
+
+                <div
+                  className="
+                    pointer-events-none
+                    absolute
+                    inset-0
+                    rounded-[32px]
+                    bg-gradient-to-br
+                    from-white/20
+                    via-transparent
+                    to-transparent
+                  "
+                />
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
 
       {validImages.length > 1 && (
@@ -255,6 +264,7 @@ export default function ImageCarousel({
               absolute
               left-3
               top-1/2
+              z-[150]
               h-12
               w-12
               -translate-y-1/2
@@ -272,6 +282,27 @@ export default function ImageCarousel({
             ‹
           </button>
 
+          <div
+            className="
+              absolute
+              bottom-2
+              left-1/2
+              z-[150]
+              -translate-x-1/2
+              rounded-full
+              border
+              border-white/15
+              bg-black/40
+              px-3
+              py-1
+              text-sm
+              text-white/80
+              backdrop-blur-xl
+            "
+          >
+            {active + 1} / {validImages.length}
+          </div>
+
           <button
             type="button"
             onClick={next}
@@ -280,6 +311,7 @@ export default function ImageCarousel({
               absolute
               right-3
               top-1/2
+              z-[150]
               h-12
               w-12
               -translate-y-1/2

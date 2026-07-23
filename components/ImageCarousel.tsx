@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -28,11 +29,20 @@ function hasValidImageAsset(
   return Boolean(image.asset._ref || image.asset._id);
 }
 
-function getImageUrl(image: SanityImage): string | null {
+function getImageUrl(
+  image: SanityImage,
+  isActive: boolean,
+): string | null {
   try {
+    const width = isActive ? 900 : 420;
+    const height = isActive ? 1200 : 560;
+    const quality = isActive ? 78 : 60;
+
     return urlFor(image)
-      .width(1200)
+      .width(width)
+      .height(height)
       .fit("max")
+      .quality(quality)
       .auto("format")
       .url();
   } catch {
@@ -121,13 +131,12 @@ export default function ImageCarousel({
               return null;
             }
 
-            const imageUrl = getImageUrl(image);
+            const isActive = position === 0;
+            const imageUrl = getImageUrl(image, isActive);
 
             if (!imageUrl) {
               return null;
             }
-
-            const isActive = position === 0;
 
             return (
               <motion.div
@@ -195,6 +204,7 @@ export default function ImageCarousel({
                     w-full
                     items-center
                     justify-center
+                    overflow-hidden
                     rounded-[32px]
                     border
                     border-white/20
@@ -204,17 +214,17 @@ export default function ImageCarousel({
                     backdrop-blur-2xl
                   "
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={imageUrl}
-                    alt={title?.trim() || "Изображение публикации"}
-                    className="
-                      max-h-full
-                      max-w-full
-                      rounded-2xl
-                      object-contain
-                    "
-                  />
+                  <div className="relative h-full w-full">
+                    <Image
+                      src={imageUrl}
+                      alt={title?.trim() || "Изображение публикации"}
+                      fill
+                      sizes="(max-width: 768px) 300px, 400px"
+                      priority={isActive && index === 0}
+                      unoptimized
+                      className="rounded-2xl object-contain"
+                    />
+                  </div>
 
                   <div
                     className="

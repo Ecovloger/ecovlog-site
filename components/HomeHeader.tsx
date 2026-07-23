@@ -4,26 +4,25 @@ export default function HomeHeader() {
   return (
     <header
       className="
-        relative
-        flex
         w-full
+        flex
         items-center
         justify-between
-        gap-3
         px-3
         py-3
         md:px-6
         md:py-5
+        gap-3
       "
     >
       <Link
         href="/"
         className="
           group
-          shrink-0
+          hover:scale-105
           transition
           duration-300
-          hover:scale-105
+          shrink-0
         "
       >
         <div
@@ -31,23 +30,23 @@ export default function HomeHeader() {
             relative
             overflow-hidden
             rounded-3xl
+            p-2
+            bg-white/10
             border
             border-white/20
-            bg-white/10
-            p-2
-            shadow-[0_8px_40px_rgba(255,255,255,0.15)]
             backdrop-blur-2xl
+            shadow-[0_8px_40px_rgba(255,255,255,0.15)]
           "
         >
           <div
             className="
-              pointer-events-none
               absolute
               inset-0
               bg-gradient-to-br
               from-white/30
               via-transparent
               to-transparent
+              pointer-events-none
             "
           />
 
@@ -57,72 +56,52 @@ export default function HomeHeader() {
             className="
               relative
               h-12
+              md:h-16
               w-auto
               object-contain
-              md:h-16
             "
           />
         </div>
       </Link>
 
-      <div
-        className="
-          pointer-events-none
-          absolute
-          left-1/2
-          top-1/2
-          hidden
-          max-w-[720px]
-          -translate-x-1/2
-          -translate-y-1/2
-          px-8
-          text-center
-          lg:block
-        "
-      >
-        <p
-          className="
-            text-balance
-            text-lg
-            font-medium
-            leading-snug
-            tracking-[-0.02em]
-            text-white/75
-            xl:text-xl
-          "
-        >
-          Экология без скуки — расследования, наука, технологии и реальные
-          проблемы
-        </p>
-      </div>
-
       <Link
         href="/contacts"
         className="
           relative
-          shrink-0
           overflow-hidden
+          shrink-0
+
+          bg-white/10
+          text-white
+
+          px-4
+          md:px-6
+
+          py-2
+          md:py-3
+
           rounded-full
+          font-semibold
+
+          text-sm
+          md:text-base
+
           border
           border-white/25
-          bg-white/10
-          px-4
-          py-2
-          text-sm
-          font-semibold
-          text-white
-          shadow-[0_8px_30px_rgba(255,255,255,0.12)]
+
           backdrop-blur-xl
+
+          shadow-[0_8px_30px_rgba(255,255,255,0.12)]
+
+          hover:bg-white/20
+          hover:scale-105
           transition
           duration-300
-          hover:scale-105
-          hover:bg-white/20
-          md:px-6
-          md:py-3
-          md:text-base
         "
       >
-        <span className="relative z-10">Контакты</span>
+        <span className="relative z-10">
+          Контакты
+        </span>
 
         <div
           className="

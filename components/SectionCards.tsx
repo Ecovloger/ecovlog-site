@@ -142,10 +142,10 @@ export default function SectionCards() {
               motion-reduce:transition-none
               ${
                 active === index
-                  ? "flex-[1.18]"
+                  ? "z-10 flex-[1.18]"
                   : active !== null
-                    ? "flex-[0.94]"
-                    : "flex-1"
+                    ? "z-0 flex-[0.94]"
+                    : "z-0 flex-1"
               }
             `}
           >
@@ -160,13 +160,15 @@ export default function SectionCards() {
                 bg-white/[0.025]
                 shadow-[0_18px_60px_rgba(0,0,0,0.28)]
                 backdrop-blur-[2px]
-                transition-[border-color,background-color,box-shadow]
-                duration-700
+                transition-[transform,border-color,background-color,box-shadow]
+                duration-[900ms]
                 ease-[cubic-bezier(0.22,1,0.36,1)]
+                motion-reduce:transform-none
+                motion-reduce:transition-none
                 ${
                   active === index
-                    ? "border-white/20 bg-white/[0.045] shadow-[0_24px_80px_rgba(0,0,0,0.38)]"
-                    : "border-white/10"
+                    ? "-translate-y-1 scale-[1.012] border-white/20 bg-white/[0.045] shadow-[0_28px_90px_rgba(0,0,0,0.42)]"
+                    : "translate-y-0 scale-100 border-white/10"
                 }
               `}
             >

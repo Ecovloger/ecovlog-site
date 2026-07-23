@@ -186,7 +186,7 @@ export default function SectionCards() {
                 "
                 className={`
                   object-contain
-                  p-3
+                  p-1
                   transition-transform
                   duration-[1000ms]
                   ease-[cubic-bezier(0.22,1,0.36,1)]
@@ -194,8 +194,8 @@ export default function SectionCards() {
                   motion-reduce:transition-none
                   ${
                     active === index
-                      ? "-translate-y-0.5 scale-[1.018]"
-                      : "translate-y-0 scale-100"
+                      ? "-translate-y-0.5 scale-[1.055]"
+                      : "translate-y-0 scale-[1.035]"
                   }
                 `}
               />
@@ -246,6 +246,39 @@ export default function SectionCards() {
 
       <div
         className="
+          mb-5
+          flex
+          min-h-[52px]
+          items-center
+          justify-center
+          px-3
+          md:hidden
+        "
+      >
+        <p
+          className={`
+            text-center
+            text-xl
+            font-semibold
+            leading-tight
+            tracking-[-0.02em]
+            text-white/90
+            transition-all
+            duration-300
+            ease-out
+            ${
+              sloganVisible
+                ? "translate-y-0 opacity-100 blur-0"
+                : "translate-y-1 opacity-0 blur-[2px]"
+            }
+          `}
+        >
+          {DEFAULT_SLOGAN}
+        </p>
+      </div>
+
+      <div
+        className="
           grid
           grid-cols-2
           gap-3
@@ -275,7 +308,7 @@ export default function SectionCards() {
               priority
               quality={85}
               sizes="50vw"
-              className="object-contain p-2"
+              className="object-contain scale-[1.06]"
             />
 
             <div

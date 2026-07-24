@@ -4,7 +4,6 @@ import type {
 } from "@/lib/complaints";
 
 export type PublicComplaintStatus =
-  | "accepted"
   | "inProgress"
   | "resolved";
 
@@ -35,7 +34,6 @@ export type PublicComplaint = {
 };
 
 export const PUBLIC_COMPLAINT_STATUSES: PublicComplaintStatus[] = [
-  "accepted",
   "inProgress",
   "resolved",
 ];
@@ -43,8 +41,7 @@ export const PUBLIC_COMPLAINT_STATUSES: PublicComplaintStatus[] = [
 export const PUBLIC_COMPLAINTS_QUERY = `
   *[
     _type == "complaint" &&
-    isPublic == true &&
-    status in ["accepted", "inProgress", "resolved"] &&
+    status in ["inProgress", "resolved"] &&
     defined(complaintId) &&
     defined(location.lat) &&
     defined(location.lng)
@@ -75,8 +72,7 @@ export const PUBLIC_COMPLAINTS_QUERY = `
 export const PUBLIC_COMPLAINT_QUERY = `
   *[
     _type == "complaint" &&
-    isPublic == true &&
-    status in ["accepted", "inProgress", "resolved"] &&
+    status in ["inProgress", "resolved"] &&
     complaintId == $complaintId
   ][0] {
     complaintId,
@@ -112,27 +108,15 @@ export function isPublicComplaintStatus(
 export function getPublicComplaintStatusTitle(
   status: PublicComplaintStatus,
 ): string {
-  if (status === "resolved") {
-    return "Решено";
-  }
-
-  if (status === "inProgress") {
-    return "В работе";
-  }
-
-  return "Не решено";
+  return status === "resolved"
+    ? "Решено"
+    : "В работе";
 }
 
 export function getPublicComplaintStatusColor(
   status: PublicComplaintStatus,
 ): string {
-  if (status === "resolved") {
-    return "#22c55e";
-  }
-
-  if (status === "inProgress") {
-    return "#facc15";
-  }
-
-  return "#ef4444";
+  return status === "resolved"
+    ? "#22c55e"
+    : "#facc15";
 }

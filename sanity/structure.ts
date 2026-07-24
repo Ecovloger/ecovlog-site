@@ -1,3 +1,4 @@
+import ComplaintAdminList from './components/ComplaintAdminList'
 import {StructureResolver} from 'sanity/structure'
 
 export const structure: StructureResolver = (S) =>
@@ -14,5 +15,13 @@ export const structure: StructureResolver = (S) =>
 
       S.divider(),
 
-      S.documentTypeListItem('complaint').title('Жалобы граждан'),
+      S.listItem()
+        .id('complaints-admin')
+        .title('Жалобы граждан')
+        .schemaType('complaint')
+        .child(
+          S.component(ComplaintAdminList)
+            .id('complaints-admin-list')
+            .title('Жалобы граждан'),
+        ),
     ])

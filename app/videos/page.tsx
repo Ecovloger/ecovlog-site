@@ -12,6 +12,8 @@ type Video = {
   title?: string | null;
   description?: string | null;
   youtubeUrl?: string | null;
+  vkVideoUrl?: string | null;
+  coverUrl?: string | null;
   date?: string | null;
   slug?: {
     current?: string | null;
@@ -43,6 +45,8 @@ const query = `
     title,
     description,
     youtubeUrl,
+    vkVideoUrl,
+    "coverUrl": cover.asset->url,
     date,
     slug
   }
@@ -77,164 +81,69 @@ export default async function Videos({
   searchParams,
 }: VideosPageProps) {
   const params = await searchParams;
-
   const rawSearch = params.search?.trim() || "";
   const search = rawSearch ? `*${rawSearch}*` : null;
-
   const currentPage = parseCurrentPage(params.page);
-
   const start = (currentPage - 1) * VIDEOS_PER_PAGE;
   const end = start + VIDEOS_PER_PAGE;
 
   const [videos, totalVideos] = await Promise.all([
-    client.fetch<Video[]>(
-      query,
-      {
-        search,
-        start,
-        end,
-      },
-    ),
-
-    client.fetch<number>(
-      countQuery,
-      {
-        search,
-      },
-    ),
+    client.fetch<Video[]>(query, { search, start, end }),
+    client.fetch<number>(countQuery, { search }),
   ]);
 
   const safeVideos = Array.isArray(videos) ? videos : [];
-
   const safeTotalVideos =
-    typeof totalVideos === "number" && totalVideos > 0
-      ? totalVideos
-      : 0;
-
-  const totalPages = Math.ceil(
-    safeTotalVideos / VIDEOS_PER_PAGE,
-  );
+    typeof totalVideos === "number" && totalVideos > 0 ? totalVideos : 0;
+  const totalPages = Math.ceil(safeTotalVideos / VIDEOS_PER_PAGE);
 
   return (
-    <main
-      className="
-        min-h-screen
-        bg-neutral-950
-        text-white
-      "
-    >
+    <main className="min-h-screen bg-neutral-950 text-white">
       <SectionHeader
         current="/videos"
         searchAction="/videos"
         searchPlaceholder="Поиск видео..."
       />
 
-      <section
-        className="
-          mx-auto
-          max-w-[1400px]
-          px-3
-          pb-6
-          pt-2
-          md:px-10
-          md:pb-16
-          md:pt-16
-        "
-      >
-        <h1
-          className="
-            text-3xl
-            font-bold
-            md:text-5xl
-          "
-        >
-          Видео
-        </h1>
+      <section className="mx-auto max-w-[1400px] px-3 pb-6 pt-2 md:px-10 md:pb-16 md:pt-16">
+        <h1 className="text-3xl font-bold md:text-5xl">Видео</h1>
 
         {safeVideos.length > 0 ? (
-          <div
-            className="
-              mt-6
-              grid
-              auto-rows-fr
-              grid-cols-2
-              items-stretch
-              gap-3
-              md:mt-12
-              md:gap-8
-              lg:grid-cols-4
-            "
-          >
+          <div className="mt-6 grid auto-rows-fr grid-cols-2 items-stretch gap-3 md:mt-12 md:gap-8 lg:grid-cols-4">
             {safeVideos.map((video) => (
-              <VideoCard
-                key={video._id}
-                {...video}
-              />
+              <VideoCard key={video._id} {...video} />
             ))}
           </div>
         ) : (
-          <p
-            className="
-              mt-10
-              text-white/50
-            "
-          >
-            Ничего не найдено
-          </p>
+          <p className="mt-10 text-white/50">Ничего не найдено</p>
         )}
 
         {totalPages > 1 && (
           <nav
             aria-label="Навигация по страницам видео"
-            className="
-              mt-12
-              flex
-              flex-wrap
-              justify-center
-              gap-2
-            "
+            className="mt-12 flex flex-wrap justify-center gap-2"
           >
-            {Array.from({
-              length: totalPages,
-            }).map((_, index) => {
+            {Array.from({ length: totalPages }).map((_, index) => {
               const page = index + 1;
               const queryParams = new URLSearchParams();
 
-              if (page > 1) {
-                queryParams.set("page", String(page));
-              }
-
-              if (rawSearch) {
-                queryParams.set("search", rawSearch);
-              }
+              if (page > 1) queryParams.set("page", String(page));
+              if (rawSearch) queryParams.set("search", rawSearch);
 
               const queryString = queryParams.toString();
-              const href = queryString
-                ? `/videos?${queryString}`
-                : "/videos";
-
+              const href = queryString ? `/videos?${queryString}` : "/videos";
               const isCurrentPage = currentPage === page;
 
               return (
                 <Link
                   key={page}
                   href={href}
-                  aria-current={
-                    isCurrentPage ? "page" : undefined
-                  }
-                  className={`
-                    rounded-full
-                    border
-                    px-4
-                    py-2
-                    text-sm
-                    transition
-                    ${
-                      isCurrentPage
-                        ? "border-white bg-white text-black"
-                        : "border-white/20 bg-white/10 text-white hover:bg-white/20"
-                    }
-                  `}
+                  aria-current={isCurrentPage ? "page" : undefined}
+                  className={`rounded-full border px-4 py-2 text-sm transition ${
+                    isCurrentPage
+                      ? "border-white bg-white text-black"
+                      : "border-white/20 bg-white/10 text-white hover:bg-white/20"
+                  }`}
                 >
                   {page}
                 </Link>

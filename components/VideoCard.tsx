@@ -8,6 +8,8 @@ type VideoProps = {
     current?: string | null;
   } | null;
   youtubeUrl?: string | null;
+  vkVideoUrl?: string | null;
+  coverUrl?: string | null;
 };
 
 function getYoutubeId(url?: string | null): string | null {
@@ -74,6 +76,8 @@ export default function VideoCard({
   date,
   slug,
   youtubeUrl,
+  vkVideoUrl,
+  coverUrl,
 }: VideoProps) {
   const slugValue = slug?.current?.trim();
 
@@ -84,12 +88,19 @@ export default function VideoCard({
   const safeTitle = title?.trim() || "Видео без названия";
   const safeDescription = description?.trim() || "";
   const formattedDate = formatDate(date);
-
   const youtubeId = getYoutubeId(youtubeUrl);
 
-  const preview = youtubeId
-    ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`
-    : "/images/video.jpg";
+  const preview =
+    coverUrl?.trim() ||
+    (youtubeId
+      ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`
+      : "/images/video.jpg");
+
+  const platformLabel = youtubeUrl && vkVideoUrl
+    ? "YouTube · VK Видео"
+    : vkVideoUrl
+      ? "VK Видео"
+      : "YouTube";
 
   return (
     <Link
@@ -125,12 +136,14 @@ export default function VideoCard({
           <img
             src={preview}
             alt={safeTitle}
-            className="
-              h-full
-              w-full
-              object-cover
-            "
+            className="h-full w-full object-cover"
           />
+
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent px-3 pb-3 pt-10">
+            <span className="inline-flex rounded-full border border-white/20 bg-black/30 px-2.5 py-1 text-[11px] font-semibold text-white/85 backdrop-blur-xl">
+              {platformLabel}
+            </span>
+          </div>
         </div>
 
         <div
@@ -145,14 +158,7 @@ export default function VideoCard({
           "
         >
           {formattedDate && (
-            <div
-              className="
-                shrink-0
-                text-xs
-                text-white/50
-                md:text-sm
-              "
-            >
+            <div className="shrink-0 text-xs text-white/50 md:text-sm">
               {formattedDate}
             </div>
           )}

@@ -17,10 +17,7 @@ type ComplaintListItem = {
   createdAt?: string;
 };
 
-const FILTERS: Array<{
-  value: ComplaintFilter;
-  title: string;
-}> = [
+const FILTERS: Array<{ value: ComplaintFilter; title: string }> = [
   { value: "all", title: "Все" },
   { value: "moderation", title: "Новые" },
   { value: "inProgress", title: "В работе" },
@@ -32,53 +29,39 @@ const STATUS_STYLES: Record<
   { background: string; border: string; label: string }
 > = {
   moderation: {
-    background: "rgba(255, 255, 255, 0.055)",
-    border: "rgba(255, 255, 255, 0.12)",
+    background: "rgba(255, 255, 255, 0.05)",
+    border: "rgba(255, 255, 255, 0.11)",
     label: "На модерации",
   },
   inProgress: {
-    background: "rgba(245, 184, 0, 0.12)",
-    border: "rgba(245, 184, 0, 0.28)",
+    background: "rgba(245, 184, 0, 0.11)",
+    border: "rgba(245, 184, 0, 0.25)",
     label: "В работе",
   },
   resolved: {
-    background: "rgba(34, 197, 94, 0.12)",
-    border: "rgba(34, 197, 94, 0.28)",
+    background: "rgba(34, 197, 94, 0.11)",
+    border: "rgba(34, 197, 94, 0.25)",
     label: "Решено",
   },
 };
 
-function normalizeStatus(status: string | undefined): ComplaintStatus | null {
-  if (status === "moderation") {
-    return "moderation";
-  }
-
-  if (status === "inProgress" || status === "accepted") {
-    return "inProgress";
-  }
-
-  if (status === "resolved") {
-    return "resolved";
-  }
-
+function normalizeStatus(status?: string): ComplaintStatus | null {
+  if (status === "moderation") return "moderation";
+  if (status === "inProgress" || status === "accepted") return "inProgress";
+  if (status === "resolved") return "resolved";
   return null;
 }
 
-function formatDate(value: string | undefined): string {
-  if (!value) {
-    return "Дата не указана";
-  }
+function formatDate(value?: string): string {
+  if (!value) return "Дата не указана";
 
   const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Дата не указана";
-  }
+  if (Number.isNaN(date.getTime())) return "Дата не указана";
 
   return new Intl.DateTimeFormat("ru-RU", {
     day: "2-digit",
     month: "2-digit",
-    year: "numeric",
+    year: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
@@ -86,7 +69,6 @@ function formatDate(value: string | undefined): string {
 
 function getEditUrl(documentId: string): string {
   const id = documentId.replace(/^drafts\./, "");
-
   return `/studio/intent/edit/id=${encodeURIComponent(id)};type=complaint`;
 }
 
@@ -106,10 +88,7 @@ export default function ComplaintAdminList() {
     const loadComplaints = async () => {
       try {
         const result = await client.fetch<ComplaintListItem[]>(`
-          *[
-            _type == "complaint" &&
-            status != "rejected"
-          ]
+          *[_type == "complaint" && status != "rejected"]
           | order(createdAt desc) {
             _id,
             complaintId,
@@ -120,9 +99,7 @@ export default function ComplaintAdminList() {
           }
         `);
 
-        if (!active) {
-          return;
-        }
+        if (!active) return;
 
         const uniqueComplaints = new Map<string, ComplaintListItem>();
 
@@ -139,14 +116,9 @@ export default function ComplaintAdminList() {
         setError(null);
       } catch (loadError) {
         console.error(loadError);
-
-        if (active) {
-          setError("Не удалось загрузить жалобы.");
-        }
+        if (active) setError("Не удалось загрузить жалобы.");
       } finally {
-        if (active) {
-          setLoading(false);
-        }
+        if (active) setLoading(false);
       }
     };
 
@@ -155,12 +127,8 @@ export default function ComplaintAdminList() {
     const subscription = client
       .listen('*[_type == "complaint"]', {}, { visibility: "query" })
       .subscribe({
-        next: () => {
-          void loadComplaints();
-        },
-        error: (listenError) => {
-          console.error(listenError);
-        },
+        next: () => void loadComplaints(),
+        error: (listenError) => console.error(listenError),
       });
 
     return () => {
@@ -179,11 +147,7 @@ export default function ComplaintAdminList() {
 
     for (const complaint of complaints) {
       const status = normalizeStatus(complaint.status);
-
-      if (!status) {
-        continue;
-      }
-
+      if (!status) continue;
       result.all += 1;
       result[status] += 1;
     }
@@ -202,41 +166,23 @@ export default function ComplaintAdminList() {
   }, [complaints, filter]);
 
   return (
-    <div
-      style={{
-        minHeight: "100%",
-        padding: "20px",
-        background: "var(--card-bg-color, transparent)",
-      }}
-    >
+    <div style={{ minHeight: "100%", padding: "12px 14px" }}>
       <div
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: "16px",
-          marginBottom: "18px",
+          gap: "10px",
+          marginBottom: "10px",
           flexWrap: "wrap",
         }}
       >
         <div>
-          <h1
-            style={{
-              margin: 0,
-              fontSize: "22px",
-              lineHeight: 1.2,
-            }}
-          >
+          <h1 style={{ margin: 0, fontSize: "20px", lineHeight: 1.15 }}>
             Жалобы граждан
           </h1>
-          <p
-            style={{
-              margin: "6px 0 0",
-              opacity: 0.65,
-              fontSize: "13px",
-            }}
-          >
-            Новые обращения всегда отображаются сверху
+          <p style={{ margin: "3px 0 0", opacity: 0.58, fontSize: "11px" }}>
+            Сначала новые
           </p>
         </div>
 
@@ -246,14 +192,14 @@ export default function ComplaintAdminList() {
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            minHeight: "36px",
-            padding: "0 14px",
-            borderRadius: "8px",
+            minHeight: "30px",
+            padding: "0 11px",
+            borderRadius: "7px",
             background: "#2276fc",
             color: "#fff",
             textDecoration: "none",
             fontWeight: 600,
-            fontSize: "14px",
+            fontSize: "12px",
           }}
         >
           Добавить жалобу
@@ -263,10 +209,9 @@ export default function ComplaintAdminList() {
       <div
         style={{
           display: "flex",
-          gap: "8px",
-          marginBottom: "16px",
+          gap: "6px",
+          marginBottom: "9px",
           overflowX: "auto",
-          paddingBottom: "2px",
         }}
       >
         {FILTERS.map((item) => {
@@ -279,17 +224,18 @@ export default function ComplaintAdminList() {
               onClick={() => setFilter(item.value)}
               style={{
                 flex: "0 0 auto",
-                minHeight: "34px",
-                padding: "0 12px",
+                minHeight: "28px",
+                padding: "0 9px",
                 borderRadius: "999px",
                 border: selected
-                  ? "1px solid rgba(255,255,255,0.28)"
-                  : "1px solid rgba(255,255,255,0.12)",
+                  ? "1px solid rgba(255,255,255,0.26)"
+                  : "1px solid rgba(255,255,255,0.11)",
                 background: selected
-                  ? "rgba(255,255,255,0.12)"
-                  : "rgba(255,255,255,0.035)",
+                  ? "rgba(255,255,255,0.11)"
+                  : "rgba(255,255,255,0.03)",
                 color: "inherit",
                 cursor: "pointer",
+                fontSize: "12px",
                 fontWeight: selected ? 650 : 500,
               }}
             >
@@ -300,23 +246,20 @@ export default function ComplaintAdminList() {
       </div>
 
       {loading ? (
-        <div style={{ padding: "30px 4px", opacity: 0.65 }}>
+        <div style={{ padding: "20px 3px", opacity: 0.65 }}>
           Загружаем жалобы…
         </div>
       ) : error ? (
-        <div style={{ padding: "30px 4px", color: "#ff8a8a" }}>{error}</div>
+        <div style={{ padding: "20px 3px", color: "#ff8a8a" }}>{error}</div>
       ) : filteredComplaints.length === 0 ? (
-        <div style={{ padding: "30px 4px", opacity: 0.65 }}>
+        <div style={{ padding: "20px 3px", opacity: 0.65 }}>
           В этом разделе пока нет жалоб.
         </div>
       ) : (
-        <div style={{ display: "grid", gap: "8px" }}>
+        <div style={{ display: "grid", gap: "4px" }}>
           {filteredComplaints.map((complaint) => {
             const status = normalizeStatus(complaint.status);
-
-            if (!status) {
-              return null;
-            }
+            if (!status) return null;
 
             const statusStyle = STATUS_STYLES[status];
 
@@ -327,16 +270,15 @@ export default function ComplaintAdminList() {
                 style={{
                   display: "grid",
                   gridTemplateColumns: "minmax(0, 1fr) auto",
-                  gap: "14px",
+                  gap: "8px",
                   alignItems: "center",
-                  padding: "13px 14px",
-                  borderRadius: "10px",
+                  minHeight: "42px",
+                  padding: "5px 9px",
+                  borderRadius: "7px",
                   border: `1px solid ${statusStyle.border}`,
                   background: statusStyle.background,
                   color: "inherit",
                   textDecoration: "none",
-                  transition:
-                    "background-color 160ms ease, border-color 160ms ease, transform 160ms ease",
                 }}
               >
                 <div style={{ minWidth: 0 }}>
@@ -344,15 +286,16 @@ export default function ComplaintAdminList() {
                     style={{
                       display: "flex",
                       alignItems: "baseline",
-                      gap: "8px",
+                      gap: "6px",
                       minWidth: 0,
+                      lineHeight: 1.15,
                     }}
                   >
                     <strong
                       style={{
                         flex: "0 0 auto",
-                        fontSize: "13px",
-                        opacity: 0.78,
+                        fontSize: "11px",
+                        opacity: 0.72,
                       }}
                     >
                       {complaint.complaintId || "Без номера"}
@@ -362,6 +305,7 @@ export default function ComplaintAdminList() {
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
+                        fontSize: "13px",
                         fontWeight: 650,
                       }}
                     >
@@ -372,11 +316,14 @@ export default function ComplaintAdminList() {
                   <div
                     style={{
                       display: "flex",
-                      gap: "8px",
-                      marginTop: "5px",
-                      fontSize: "12px",
-                      opacity: 0.66,
-                      flexWrap: "wrap",
+                      gap: "5px",
+                      marginTop: "2px",
+                      overflow: "hidden",
+                      whiteSpace: "nowrap",
+                      textOverflow: "ellipsis",
+                      fontSize: "10px",
+                      lineHeight: 1.1,
+                      opacity: 0.6,
                     }}
                   >
                     <span>{formatDate(complaint.createdAt)}</span>
@@ -386,10 +333,10 @@ export default function ComplaintAdminList() {
 
                 <span
                   style={{
-                    padding: "5px 8px",
+                    padding: "3px 6px",
                     borderRadius: "999px",
                     border: `1px solid ${statusStyle.border}`,
-                    fontSize: "12px",
+                    fontSize: "10px",
                     fontWeight: 650,
                     whiteSpace: "nowrap",
                   }}

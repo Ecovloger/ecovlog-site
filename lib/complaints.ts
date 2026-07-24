@@ -47,20 +47,12 @@ export const COMPLAINT_STATUSES = [
     title: "На модерации",
   },
   {
-    value: "accepted",
-    title: "Принято",
-  },
-  {
     value: "inProgress",
     title: "В работе",
   },
   {
     value: "resolved",
     title: "Решено",
-  },
-  {
-    value: "rejected",
-    title: "Отклонено",
   },
 ] as const;
 
@@ -137,6 +129,14 @@ export function getComplaintCategoryTitle(
 export function getComplaintStatusTitle(
   value: string | undefined,
 ): string {
+  if (value === "accepted") {
+    return "В работе";
+  }
+
+  if (value === "rejected") {
+    return "Отклонено";
+  }
+
   return (
     COMPLAINT_STATUSES.find(
       (status) => status.value === value,

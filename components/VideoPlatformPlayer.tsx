@@ -59,25 +59,37 @@ function getVkEmbedUrl(value?: string | null): string | null {
     const parsedUrl = new URL(candidate);
     const hostname = parsedUrl.hostname.replace(/^www\./, "");
 
-    if (!["vk.com", "vk.ru", "vkvideo.ru"].includes(hostname)) {
+    if (!['vk.com', 'vk.ru', 'vkvideo.ru'].includes(hostname)) {
       return null;
     }
 
-    if (parsedUrl.pathname.includes("video_ext.php")) {
+    if (
+      parsedUrl.pathname.includes("video_ext.php") ||
+      parsedUrl.pathname.includes("clip_ext.php")
+    ) {
       return parsedUrl.toString();
     }
 
     const videoMatch = parsedUrl.pathname.match(/video(-?\d+)_(\d+)/);
+    const clipMatch = parsedUrl.pathname.match(/clip(-?\d+)_(\d+)/);
+    const match = videoMatch ?? clipMatch;
 
-    if (!videoMatch) {
+    if (!match) {
       return null;
     }
 
-    const [, ownerId, videoId] = videoMatch;
-    const embedUrl = new URL(`https://${hostname}/video_ext.php`);
+    const [, ownerId, videoId] = match;
+    const isClip = Boolean(clipMatch);
+    const embedUrl = new URL(
+      `https://${hostname}/${isClip ? "clip_ext.php" : "video_ext.php"}`,
+    );
+
     embedUrl.searchParams.set("oid", ownerId);
     embedUrl.searchParams.set("id", videoId);
-    embedUrl.searchParams.set("hd", "3");
+
+    if (!isClip) {
+      embedUrl.searchParams.set("hd", "3");
+    }
 
     return embedUrl.toString();
   } catch {

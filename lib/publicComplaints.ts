@@ -41,7 +41,7 @@ export const PUBLIC_COMPLAINT_STATUSES: PublicComplaintStatus[] = [
 export const PUBLIC_COMPLAINTS_QUERY = `
   *[
     _type == "complaint" &&
-    status in ["inProgress", "resolved"] &&
+    status in ["accepted", "inProgress", "resolved"] &&
     defined(complaintId) &&
     defined(location.lat) &&
     defined(location.lng)
@@ -57,7 +57,10 @@ export const PUBLIC_COMPLAINTS_QUERY = `
       lat,
       lng
     },
-    status,
+    "status": select(
+      status == "accepted" => "inProgress",
+      status
+    ),
     createdAt,
     publishedAt,
     videoUrl,
@@ -72,7 +75,7 @@ export const PUBLIC_COMPLAINTS_QUERY = `
 export const PUBLIC_COMPLAINT_QUERY = `
   *[
     _type == "complaint" &&
-    status in ["inProgress", "resolved"] &&
+    status in ["accepted", "inProgress", "resolved"] &&
     complaintId == $complaintId
   ][0] {
     complaintId,
@@ -85,7 +88,10 @@ export const PUBLIC_COMPLAINT_QUERY = `
       lat,
       lng
     },
-    status,
+    "status": select(
+      status == "accepted" => "inProgress",
+      status
+    ),
     createdAt,
     publishedAt,
     videoUrl,
